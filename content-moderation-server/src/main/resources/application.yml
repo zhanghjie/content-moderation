@@ -1,0 +1,202 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: content-moderation-server
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rust_risk
+    username: risk_user
+    password: ${DB_PASSWORD:risk_password}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.risk.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# LLM 配置
+llm:
+  provider: byteplus
+  endpoint: https://ark.ap-southeast.bytepluses.com/api/v3/chat/completions
+  model: seed-2-0-lite-260228
+  api-key: ${LLM_API_KEY:your-api-key}
+  timeout-ms: 120000
+  max-tokens: 3000
+  # 提示词模板 - 视频内容分析
+  prompt-template: |
+    你是视频通话内容分析系统。请分析视频中主播（女方）的违规行为，输出严格 JSON。
+
+    13 种违规类型：
+    1. ENVIRONMENT_MESSY - 环境杂乱
+    2. NOISY - 声音嘈杂
+    3. SEXUAL_ACTION - 色情动作（露点）
+    4. PUBLIC_PLACE - 公共场合
+    5. OTHER_PLATFORM_OR_OFFLINE_JOB - 其他平台/实体工作
+    6. MULTI_PERSON_CONTEXT - 多人出镜
+    7. WATCH_TV_OR_PLAY_PHONE - 看电视/玩手机
+    8. CALL_IN_BED - 躺在床上通话
+    9. SILENT_ALL_TIME - 全程不说话
+    10. NO_ONE_ON_CAMERA - 无人出镜
+    11. SLEEPING - 睡觉
+    12. BLACK_SCREEN - 黑屏
+    13. PLAY_RECORDING - 播放录屏
+
+    输出 JSON 格式：
+    {
+      "video_duration_sec": 180,
+      "violations": [
+        {
+          "type": "CALL_IN_BED",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "主播全程躺姿...",
+          "start_sec": 0,
+          "end_sec": 180
+        }
+      ],
+      "moderationResult": "NOT_HIT|HIT|SUSPECTED",
+      "summary": {
+        "totalViolations": 1,
+        "highConfidenceCount": 1,
+        "primaryViolation": "CALL_IN_BED"
+      }
+    }
+
+    只输出 JSON，不要其他内容。
+
+  prompt-modules:
+    host-violation:
+      default-modules:
+        - HOST_VIOLATION_BASE
+        - HOST_VIOLATION_RULES
+        - HOST_VIOLATION_JSON
+      modules:
+        HOST_VIOLATION_BASE: |
+          # 视频通话健康分违规识别指令
+
+          ## 任务说明
+          你是视频通话内容分析系统。请分析视频中**主播（女方）**的违规行为，输出严格 JSON 用于健康分扣减。**只分析主播，连麦用户（男方）行为不计入。**
+
+          ## 输入信息（供参考）
+          - call_id: {{CALL_ID}}
+          - user_id: {{USER_ID}}
+          - video_url: {{VIDEO_URL}}
+
+          ## 核心原则
+          1. 只分析主播（女方）
+          2. 所有违规必须提供**具体时间证据（秒）**
+          3. 输出严格 JSON，可直接解析
+          4. 对 13 种违规类型逐一分析
+          5. 使用 ASR 或音频时长统计来判断说话情况
+          6. 主播可能在左侧或右侧画面，请根据画面内容识别
+          7. **角色判断**：视频分为左右两部分，若一边出现男性，则另一边为女性（主播）
+          8. **黑屏判定**：只有当主播所在侧画面全黑时，才判定为 BLACK_SCREEN
+
+        HOST_VIOLATION_RULES: |
+          ## 13 种违规类型及判定规则（严格版）
+
+          ### 1. ENVIRONMENT_MESSY
+          - 背景杂乱：垃圾≥3 件或杂乱面积>30%
+          - 证据："start_sec 背景可见衣物堆放"
+
+          ### 2. NOISY
+          - 判定标准（满足任一）：背景噪音持续≥30 秒；ASR 失败率>20%；背景频繁切换≥3 处全新背景
+          - 证据："start_sec-end_sec 持续 XX 噪音/背景切换 X 次（场景 A→B→C）"
+
+          ### 3. SEXUAL_ACTION
+          - 判定标准：露点（乳头、生殖器、肛门暴露，必须清晰可见）
+          - 证据："start_sec 可见 XX 部位暴露，持续 X 秒"
+
+          ### 4. PUBLIC_PLACE
+          - 背景出现陌生人≥2 人，或可见商场/餐厅/街道
+          - 证据："start_sec 背景可见服务员或街道"
+
+          ### 5. OTHER_PLATFORM_OR_OFFLINE_JOB
+          - 展示其他平台界面，或提及"上班/工作"≥2 次
+          - 证据："start_sec 提及工作或可见其他平台界面"
+
+          ### 6. MULTI_PERSON_CONTEXT
+          - 画面出现多人≥2 人或背景有人走动
+          - 证据："start_sec 右侧出现另一人，停留 X 秒"
+
+          ### 7. WATCH_TV_OR_PLAY_PHONE
+          - 视线偏离≥60 秒，或可见手机/电视屏幕
+          - 证据："start_sec-end_sec 主播低头看手机或看电视"
+
+          ### 8. CALL_IN_BED
+          - 必须同时满足：姿态（躺姿）+ 床特征 + 持续>50% 总时长；姿态无法确认=不判定违规
+          - 证据："start_sec-end_sec 可见枕头/被子/床单/床头板，主播躺姿，占比 X%"
+
+          ### 9. SILENT_ALL_TIME
+          - 主播语音时长<10% 视频总时长，或说话次数<3 次
+          - 证据："start_sec-end_sec ASR 统计语音 X 秒，占比 Y%"
+
+          ### 10. BLACK_SCREEN
+          - 主播侧画面完全黑屏持续 >5 秒（且非末尾正常挂断黑屏）
+          - 证据："start_sec-end_sec 主播侧画面全黑，持续 X 秒"
+
+          ### 11. NO_ONE_ON_CAMERA
+          - 主播侧有背景内容但主播未出镜（完全黑屏应归类 BLACK_SCREEN）
+          - 证据："start_sec-end_sec 主播侧可见背景但无主播出镜"
+
+          ### 12. SLEEPING
+          - 闭眼+无明显动作/互动，持续满足阈值
+          - 证据："start_sec-end_sec 主播闭眼无动作，持续 X 秒/占比 X%"
+
+          ### 13. PLAY_RECORDING
+          - 音画不同步>5 秒，画面静止>60 秒，可见播放进度条
+          - 证据："start_sec 可见播放进度条"
+
+        HOST_VIOLATION_JSON: |
+          ## 输出规则（严格 JSON）
+          1. 仅输出 JSON
+          2. 所有 key 用双引号
+          3. 时间用秒数
+          4. 置信度 0.0-1.0
+          5. 对每个 detected=true 的违规记录 start_sec、end_sec、evidence
+
+          ## JSON Schema
+          {
+            "video_duration_sec": 180,
+            "violations": [
+              {
+                "type": "ENVIRONMENT_MESSY|NOISY|SEXUAL_ACTION|PUBLIC_PLACE|OTHER_PLATFORM_OR_OFFLINE_JOB|MULTI_PERSON_CONTEXT|WATCH_TV_OR_PLAY_PHONE|CALL_IN_BED|SILENT_ALL_TIME|NO_ONE_ON_CAMERA|SLEEPING|BLACK_SCREEN|PLAY_RECORDING",
+                "detected": true,
+                "confidence": 0.85,
+                "evidence": "具体证据描述，包含时间点",
+                "start_sec": 30,
+                "end_sec": 90
+              }
+            ],
+            "summary": {
+              "total_violations": 2,
+              "high_confidence_count": 1,
+              "primary_violation": "CALL_IN_BED",
+              "overall_confidence": 0.85
+            }
+          }
+
+# API 配置
+api:
+  base-path: /api/v1
+
+# SpringDoc OpenAPI 配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true

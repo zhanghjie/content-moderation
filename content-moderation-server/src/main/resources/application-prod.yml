@@ -1,0 +1,55 @@
+# 生产环境配置
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: content-moderation-server
+  datasource:
+    url: jdbc:postgresql://47.99.69.21:9877/integration
+    username: integration
+    password: GKj3sfGzc7d3wMtN
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.moderation.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# LLM 配置
+llm:
+  provider: byteplus
+  endpoint: https://ark.ap-southeast.bytepluses.com/api/v3/chat/completions
+  model: seed-2-0-lite-260228
+  api-key: ${LLM_API_KEY:your-api-key}
+  timeout-ms: 120000
+
+# API 配置
+api:
+  base-path: /api/v1
+
+# SpringDoc OpenAPI 配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true

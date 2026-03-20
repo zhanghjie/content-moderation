@@ -1,0 +1,196 @@
+/**
+ * 图标组件 - 使用 Element Plus 图标
+ */
+import * as Icons from '@element-plus/icons-vue'
+
+// 图标映射
+export const iconMap: Record<string, any> = {
+  // 导航
+  'arrow-left': Icons.ArrowLeft,
+  'arrow-right': Icons.ArrowRight,
+  'arrow-up': Icons.ArrowUp,
+  'arrow-down': Icons.ArrowDown,
+  'back': Icons.Back,
+  'right': Icons.Right,
+  'top': Icons.Top,
+  'bottom': Icons.Bottom,
+
+  // 操作
+  'refresh': Icons.Refresh,
+  'refresh-right': Icons.RefreshRight,
+  'check': Icons.Check,
+  'close': Icons.Close,
+  'plus': Icons.Plus,
+  'minus': Icons.Minus,
+  'edit': Icons.Edit,
+  'delete': Icons.Delete,
+  'copy': Icons.CopyDocument,
+  'link': Icons.Link,
+  'share': Icons.Share,
+  'download': Icons.Download,
+  'upload': Icons.Upload,
+  'send': Icons.Position,
+  'search': Icons.Search,
+  'filter': Icons.Filter,
+  'setting': Icons.Setting,
+  'more': Icons.More,
+
+  // 状态
+  'warning': Icons.Warning,
+  'info': Icons.InfoFilled,
+  'question': Icons.QuestionFilled,
+  'success': Icons.CircleCheck,
+  'error': Icons.CircleClose,
+  'lock': Icons.Lock,
+  'unlock': Icons.Unlock,
+  'eye': Icons.View,
+  'eye-off': Icons.Hide,
+
+  // 文件/文档
+  'document': Icons.Document,
+  'folder': Icons.Folder,
+  'file': Icons.Files,
+
+  // 媒体
+  'image': Icons.Picture,
+  'camera': Icons.Camera,
+  'video': Icons.VideoCamera,
+  'play': Icons.VideoPlay,
+  'pause': Icons.VideoPause,
+  'mic': Icons.Microphone,
+  'mic-off': Icons.Microphone,
+
+  // 通讯
+  'phone': Icons.Phone,
+  'chat': Icons.ChatDotRound,
+  'message': Icons.Message,
+  'bell': Icons.Bell,
+  'notification': Icons.Bell,
+
+  // 用户
+  'user': Icons.User,
+  'user-filled': Icons.UserFilled,
+  'users': Icons.UserFilled,
+
+  // 数据
+  'chart': Icons.DataAnalysis,
+  'data': Icons.DataLine,
+  'trend-up': Icons.TrendCharts,
+  'trend-down': Icons.TrendCharts,
+
+  // 时间
+  'clock': Icons.Clock,
+  'calendar': Icons.Calendar,
+  'timer': Icons.Timer,
+
+  // 其他
+  'home': Icons.HomeFilled,
+  'menu': Icons.Menu,
+  'list': Icons.List,
+  'grid': Icons.Grid,
+  'star': Icons.Star,
+  'star-filled': Icons.StarFilled,
+  'heart': Icons.StarFilled,
+  'location': Icons.Location,
+  'price-tag': Icons.PriceTag,
+  'tag': Icons.PriceTag,
+  'wallet': Icons.Wallet,
+  'shopping-cart': Icons.ShoppingCart,
+  'goods': Icons.Goods,
+  'present': Icons.Present,
+  'key': Icons.Key,
+  'tools': Icons.Tools,
+  'connection': Icons.Connection,
+  'switch': Icons.Switch,
+  'moon': Icons.Moon,
+  'sunny': Icons.Sunny,
+  'cloudy': Icons.Cloudy,
+  'compass': Icons.Compass,
+  'guide': Icons.Guide,
+  'help': Icons.HelpFilled,
+  'info-filled': Icons.InfoFilled
+}
+
+// 获取图标组件
+export function getIcon(name: string): any {
+  return iconMap[name] || Icons.QuestionFilled
+}
+
+// 导出常用图标
+export const {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  Back,
+  Right,
+  Refresh,
+  RefreshRight,
+  Check,
+  Close,
+  Plus,
+  Minus,
+  Edit,
+  Delete,
+  Download,
+  Upload,
+  Search,
+  Setting,
+  Warning,
+  InfoFilled,
+  CircleCheck,
+  CircleClose,
+  User,
+  UserFilled,
+  VideoCamera,
+  VideoPlay,
+  VideoPause,
+  Phone,
+  ChatDotRound,
+  Message,
+  Bell,
+  DataAnalysis,
+  Clock,
+  Calendar,
+  HomeFilled,
+  Menu,
+  List,
+  Star,
+  StarFilled,
+  Location,
+  Moon,
+  Sunny,
+  View,
+  Hide,
+  Lock,
+  Unlock,
+  Filter,
+  Position,
+  TrendCharts,
+  Microphone,
+  Picture,
+  Camera,
+  Document,
+  Folder,
+  Files,
+  CopyDocument,
+  Link,
+  Share,
+  More,
+  Top,
+  Bottom,
+  Key,
+  Tools,
+  Connection,
+  Switch,
+  Cloudy,
+  Compass,
+  Guide,
+  HelpFilled,
+  Timer,
+  Wallet,
+  ShoppingCart,
+  Goods,
+  Present,
+  PriceTag
+} = Icons

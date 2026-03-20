@@ -1,0 +1,62 @@
+# 集成测试环境配置 - 使用远程 PostgreSQL
+server:
+  port: 8081
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: content-moderation-server-test
+  datasource:
+    url: jdbc:postgresql://47.99.69.21:9877/integration
+    username: integration
+    password: GKj3sfGzc7d3wMtN
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 30000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.moderation.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# LLM 配置（测试用 Mock）
+llm:
+  provider: byteplus
+  endpoint: https://video.linkyou.tech/9582562192794bc083d4aa1308a9605c
+  model: seed-2-0-lite-260228
+  api-key: c772b5fa-fc25-4ba1-8e07-6dea5c3b025e
+  timeout-ms: 20000
+
+# API 配置
+api:`
+  base-path: /api/v1
+
+# SpringDoc OpenAPI 配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: false
+
+# 日志配置
+logging:
+  level:
+    root: WARN
+    com.moderation: DEBUG
+    org.springframework.web: INFO
+    org.mybatis: INFO
+    org.h2: WARN

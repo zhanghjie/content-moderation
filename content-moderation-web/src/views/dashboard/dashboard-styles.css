@@ -1,0 +1,558 @@
+.dashboard-page {
+  padding: 0;
+}
+
+/* ========== 页面标题 ========== */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 8px 0;
+}
+
+.page-title-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 18px;
+  font-weight: var(--font-medium);
+  font-size: 14px;
+  transition: all var(--transition-base);
+  height: 38px;
+  border-radius: var(--radius-md);
+}
+
+.refresh-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.skill-slogan-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-medium);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0b1220 100%);
+  margin-bottom: 20px;
+  padding: 18px 22px;
+}
+
+.slogan-glow {
+  position: absolute;
+  inset: -40% auto auto -10%;
+  width: 380px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.45) 0%, rgba(56, 189, 248, 0) 70%);
+  pointer-events: none;
+}
+
+.slogan-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slogan-kicker {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(226, 232, 240, 0.72);
+  font-weight: 700;
+}
+
+.slogan-text {
+  font-size: 40px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f8fafc;
+  text-transform: uppercase;
+}
+
+.slogan-desc {
+  font-size: 14px;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.slogan-pulse {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #22d3ee 0%, #60a5fa 40%, #a78bfa 70%, #22d3ee 100%);
+  background-size: 200% 100%;
+  animation: sloganFlow 3s linear infinite;
+}
+
+@keyframes sloganFlow {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+/* ========== 统计卡片 ========== */
+.stat-row {
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  min-height: 176px;
+  height: auto;
+  position: relative;
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-xs);
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(249,250,251,0.3) 100%);
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.stat-card-planner::before { background: linear-gradient(90deg, #0ea5e9 0%, #6366f1 100%); }
+.stat-card-executor::before { background: linear-gradient(90deg, #06b6d4 0%, #0891b2 100%); }
+.stat-card-critic::before { background: linear-gradient(90deg, #22c55e 0%, #10b981 100%); }
+.stat-card-tag::before { background: linear-gradient(90deg, #f59e0b 0%, #f97316 100%); }
+
+/* ========== 智能分析流水线 ========== */
+.pipeline-card {
+  margin-bottom: 24px;
+}
+
+.pipeline-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32px 24px;
+  gap: 12px;
+}
+
+.pipeline-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  text-align: center;
+}
+
+.step-icon-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  z-index: 2;
+  transition: all var(--transition-bounce);
+}
+
+.pipeline-step:hover .step-icon-box {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.step-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-name {
+  font-size: 15px;
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+
+.step-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.step-connector {
+  position: absolute;
+  top: 28px;
+  left: calc(50% + 40px);
+  right: calc(-50% + 40px);
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+
+.connector-line {
+  flex: 1;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--border-medium) 0, var(--border-medium) 4px, transparent 4px, transparent 8px);
+  opacity: 0.6;
+}
+
+.connector-arrow {
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid var(--border-heavy);
+  border-right: 2px solid var(--border-heavy);
+  transform: rotate(45deg);
+  margin-left: -4px;
+}
+
+/* 呼吸灯效果 */
+.pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #fff;
+  border-radius: 50%;
+  margin-right: 6px;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+.stat-card:hover::before {
+  opacity: 1;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-medium);
+}
+
+.stat-content {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  height: 100%;
+  padding: 20px;
+}
+
+.stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-height: 48px;
+}
+
+.stat-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.stat-tag {
+  font-weight: var(--font-medium);
+  font-size: 12px;
+  padding: 4px 10px;
+  height: auto;
+  line-height: 1.2;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+
+.stat-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.stat-value.danger { color: var(--danger); }
+.stat-value.warning { color: var(--warning); }
+.stat-value.success { color: var(--success); }
+
+.stat-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
+  line-height: 1.25;
+}
+
+@media (max-width: 768px) {
+  .slogan-text {
+    font-size: 28px;
+  }
+
+  .skill-slogan-panel {
+    padding: 16px;
+  }
+}
+
+.stat-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+  min-height: 34px;
+}
+
+.trend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: var(--font-semibold);
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.trend-up {
+  color: var(--success);
+  background: var(--success-light);
+}
+
+.trend-up.danger {
+  color: var(--danger);
+  background: var(--danger-light);
+}
+
+.trend-up.warning {
+  color: var(--warning);
+  background: var(--warning-light);
+}
+
+.trend-down {
+  color: var(--danger);
+  background: var(--danger-light);
+}
+
+.trend-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ========== 图表卡片 ========== */
+.chart-row {
+  margin-bottom: 24px;
+}
+
+.chart-card {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  border: 1px solid var(--border-light);
+}
+
+.chart-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: var(--font-semibold);
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.title-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.chart-container {
+  height: 300px;
+  width: 100%;
+}
+
+.chart-container-lg {
+  height: 340px;
+}
+
+.trend-card {
+  margin-bottom: 24px;
+}
+
+/* ========== 表格卡片 ========== */
+.list-row {
+  margin-bottom: 24px;
+}
+
+.table-card {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  border: 1px solid var(--border-light);
+}
+
+.table-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.view-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: var(--font-medium);
+  font-size: 14px;
+  transition: all var(--transition-fast);
+  color: var(--primary-600);
+}
+
+.view-all-btn:hover {
+  transform: translateX(4px);
+  color: var(--primary-700);
+}
+
+.violation-count {
+  font-weight: var(--font-semibold);
+  color: var(--danger);
+}
+
+.time-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.action-link {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: var(--font-medium);
+  font-size: 14px;
+  transition: all var(--transition-fast);
+  color: var(--primary-600);
+}
+
+.action-link:hover {
+  transform: translateX(2px);
+  color: var(--primary-700);
+}
+
+/* ========== 响应式适配 ========== */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .stat-card {
+    margin-bottom: 16px;
+    min-height: 168px;
+  }
+  
+  .stat-value {
+    font-size: 28px;
+  }
+  
+  .stat-icon-wrapper {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .chart-container {
+    height: 260px;
+  }
+  
+  .chart-container-lg {
+    height: 300px;
+  }
+  
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pipeline-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 20px 16px;
+  }
+
+  .pipeline-step {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: 12px;
+  }
+
+  .step-icon-box {
+    margin-bottom: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 18px;
+  }
+
+  .step-connector {
+    display: none;
+  }
+}
