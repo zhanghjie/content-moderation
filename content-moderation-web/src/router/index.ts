@@ -73,10 +73,28 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '系统信息' }
       },
       {
+        path: 'settings/skills',
+        name: 'SkillFactory',
+        component: () => import('@/views/settings/SkillFactory.vue'),
+        meta: { title: 'Skill 注册工厂' }
+      },
+      {
+        path: 'settings/policies',
+        name: 'PolicyOverview',
+        component: () => import('@/views/settings/PolicyOverview.vue'),
+        meta: { title: 'Policy 配置中心' }
+      },
+      {
+        path: 'settings/policies/editor',
+        name: 'PolicyCenter',
+        component: () => import('@/views/settings/PolicyCenter.vue'),
+        meta: { title: 'Policy 编排编辑', hidden: true }
+      },
+      {
         path: 'settings/prompts',
         name: 'SettingsPrompts',
-        component: () => import('@/views/settings/PromptManage.vue'),
-        meta: { title: 'Prompt管理' }
+        redirect: '/settings/api',
+        meta: { title: '系统设置', hidden: true }
       }
     ]
   }

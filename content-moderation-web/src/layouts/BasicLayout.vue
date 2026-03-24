@@ -221,7 +221,8 @@ const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
     title: '系统管理',
     items: [
       { label: '系统设置', icon: Setting, route: '/settings/api' },
-      { label: 'Prompt管理', icon: Files, route: '/settings/prompts' }
+      { label: 'Skill 注册', icon: Setting, route: '/settings/skills' },
+      { label: 'Policy 配置', icon: Setting, route: '/settings/policies' }
     ]
   }
 ]
@@ -241,7 +242,6 @@ const activeMenu = computed(() => {
   const path = route.path
   if (path.startsWith('/video/')) return '/video/tasks'
   if (isProfilePath(path)) return '/profile'
-  if (path.startsWith('/settings/prompts')) return '/settings/prompts'
   if (path.startsWith('/settings/')) return '/settings/api'
   return path
 })
@@ -265,8 +265,9 @@ function isRouteActive(itemRoute: string) {
   if (itemRoute === '/video/tasks') return route.path === '/video/tasks' || /^\/video\/[^/]+$/.test(route.path) && route.path !== '/video/new'
   if (itemRoute === '/video/new') return route.path === '/video/new'
   if (itemRoute === '/profile') return isProfilePath(route.path)
-  if (itemRoute === '/settings/prompts') return route.path.startsWith('/settings/prompts')
   if (itemRoute === '/settings/api') return route.path.startsWith('/settings/api')
+  if (itemRoute === '/settings/skills') return route.path.startsWith('/settings/skills')
+  if (itemRoute === '/settings/policies') return route.path.startsWith('/settings/policies')
   return route.path === itemRoute
 }
 

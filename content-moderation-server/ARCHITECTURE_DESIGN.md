@@ -222,6 +222,51 @@ PENDING → PROCESSING → VALIDATING → COMPLETED
 - Critic 不通过 → 重新执行
 - 超过阈值 → 转人工审核
 
+### Phase 4.1 Policy 执行流程（当前落地流程）
+
+为统一 Skill 与 Policy 的执行语义，执行链路按以下步骤推进：
+
+1. 加载 Policy
+   - 根据 `policyId` 读取策略定义
+   - 获取 `skillPipeline` 与 `config`
+
+2. 组合 Skill Pipeline
+   - 按 Policy 中配置顺序构建待执行 Skill 列表
+   - 结合 `config` 完成开关、阈值、跳过规则预处理
+
+3. Planner 生成 SKILL Plan
+   - 以 `skillPipeline + 输入上下文 + config` 作为 Planner 入参
+   - 输出可执行计划（步骤、依赖、跳过条件、重试策略）
+
+4. 执行 Plan
+   - 按计划顺序执行每个 Skill
+   - 单个 Skill 执行结果记录 `success / skipped / duration / message / output`
+   - 失败时按计划策略重试、降级或中断
+
+5. 写入 State
+   - 初始化写入 `input`
+   - 每个 Skill 成功后写入 `state[skillId] = output`
+   - 结束后写入 `policyId / success / durationMs / errorMessage`
+
+执行主流程可抽象为：
+
+```
+加载 Policy
+    ↓
+组合 skillPipeline
+    ↓
+Planner 生成 SKILL Plan
+    ↓
+执行 Plan（按步骤执行）
+    ↓
+写入 state（input + 每步output + 汇总元信息）
+```
+
+约束说明：
+- Skill 执行模式统一为 LLM 路径，Policy 层不再依赖 Java 执行器分流
+- Skill 在注册阶段完成 LLM 绑定，执行阶段按 Skill 绑定配置进行模型调用
+- Policy `config` 仅作为策略参数，不直接承载执行结果
+
 ---
 
 ### Phase 5: 数据驱动（v5.0 - 9~12 个月）

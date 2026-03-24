@@ -18,6 +18,126 @@ FRONTEND_DIR="/Users/zhanghaojie/IdeaProjects/content-moderation/content-moderat
 BACKEND_SCRIPT="$BACKEND_DIR/start.sh"
 FRONTEND_SCRIPT="$FRONTEND_DIR/start.sh"
 
+# 函数：是否存在命令
+has_cmd() {
+    command -v "$1" > /dev/null 2>&1
+}
+
+# 函数：检查 PID 是否存活
+is_pid_alive() {
+    local pid="$1"
+    if [ -z "$pid" ]; then
+        return 1
+    fi
+    ps -p "$pid" > /dev/null 2>&1
+}
+
+# 函数：收集子进程（递归）
+collect_descendants() {
+    local pid="$1"
+    if ! has_cmd pgrep; then
+        return 0
+    fi
+    local children
+    children=$(pgrep -P "$pid" 2>/dev/null || true)
+    for c in $children; do
+        collect_descendants "$c"
+        echo "$c"
+    done
+}
+
+# 函数：优雅终止进程树
+kill_tree() {
+    local pid="$1"
+    local label="$2"
+    local timeout_sec="${3:-8}"
+
+    if ! is_pid_alive "$pid"; then
+        return 0
+    fi
+
+    print_warning "准备终止进程树：$label (PID: $pid)"
+
+    local descendants
+    descendants=$(collect_descendants "$pid" || true)
+
+    for d in $descendants; do
+        if is_pid_alive "$d"; then
+            kill -TERM "$d" 2>/dev/null || true
+        fi
+    done
+    kill -TERM "$pid" 2>/dev/null || true
+
+    local i=0
+    while [ $i -lt "$timeout_sec" ]; do
+        local alive=0
+        if is_pid_alive "$pid"; then
+            alive=1
+        fi
+        for d in $descendants; do
+            if is_pid_alive "$d"; then
+                alive=1
+                break
+            fi
+        done
+        if [ "$alive" -eq 0 ]; then
+            print_info "进程树已退出：$label"
+            return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+
+    print_warning "超时未退出，强制终止：$label"
+    for d in $descendants; do
+        if is_pid_alive "$d"; then
+            kill -KILL "$d" 2>/dev/null || true
+        fi
+    done
+    if is_pid_alive "$pid"; then
+        kill -KILL "$pid" 2>/dev/null || true
+    fi
+}
+
+# 函数：按端口杀掉监听进程（兜底）
+kill_by_port() {
+    local port="$1"
+    local label="$2"
+    if ! has_cmd lsof; then
+        print_warning "lsof 不存在，跳过端口兜底清理：$label :$port"
+        return 0
+    fi
+    local pids
+    pids=$(lsof -ti "tcp:$port" 2>/dev/null || true)
+    if [ -z "$pids" ]; then
+        return 0
+    fi
+    for pid in $pids; do
+        kill_tree "$pid" "$label(:$port)" 8
+    done
+}
+
+# 函数：等待端口释放
+wait_port_free() {
+    local port="$1"
+    local label="$2"
+    local timeout_sec="${3:-10}"
+    if ! has_cmd lsof; then
+        return 0
+    fi
+    local i=0
+    while [ $i -lt "$timeout_sec" ]; do
+        local pids
+        pids=$(lsof -ti "tcp:$port" 2>/dev/null || true)
+        if [ -z "$pids" ]; then
+            return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    print_warning "端口仍被占用：$label :$port"
+}
+
 # 函数：打印信息
 print_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -86,12 +206,26 @@ stop_all() {
     if [ -f "$FRONTEND_SCRIPT" ]; then
         bash "$FRONTEND_SCRIPT" stop
     fi
+    if [ -f "$FRONTEND_DIR/.frontend.pid" ]; then
+        FRONT_PID=$(cat "$FRONTEND_DIR/.frontend.pid" 2>/dev/null || true)
+        kill_tree "$FRONT_PID" "frontend(pidfile)" 8
+        rm -f "$FRONTEND_DIR/.frontend.pid" 2>/dev/null || true
+    fi
+    kill_by_port 3000 "frontend"
+    wait_port_free 3000 "frontend" 10
     
     # 停止后端
     print_info "正在停止后端服务..."
     if [ -f "$BACKEND_SCRIPT" ]; then
         bash "$BACKEND_SCRIPT" stop
     fi
+    if [ -f "$BACKEND_DIR/.server.pid" ]; then
+        BACK_PID=$(cat "$BACKEND_DIR/.server.pid" 2>/dev/null || true)
+        kill_tree "$BACK_PID" "backend(pidfile)" 8
+        rm -f "$BACKEND_DIR/.server.pid" 2>/dev/null || true
+    fi
+    kill_by_port 8080 "backend"
+    wait_port_free 8080 "backend" 10
     
     print_info "所有服务已停止"
 }

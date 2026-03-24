@@ -14,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,7 +23,11 @@ public class PromptEngineLlmService {
     private final LLMProperties llmProperties;
 
     public String chat(String prompt, String modelName, Double temperature, Integer maxTokens) {
-        LlmProfileService.LlmRuntimeProfile profile = llmProfileService.findDefaultEnabled().orElse(null);
+        return chat(prompt, modelName, temperature, maxTokens, null);
+    }
+
+    public String chat(String prompt, String modelName, Double temperature, Integer maxTokens, String configCode) {
+        LlmProfileService.LlmRuntimeProfile profile = resolveProfile(configCode).orElse(null);
         String endpoint = profile == null ? llmProperties.getEndpoint() : profile.endpoint();
         String model = modelName == null || modelName.isBlank()
                 ? (profile == null ? llmProperties.getModel() : profile.model())
@@ -41,6 +46,13 @@ public class PromptEngineLlmService {
         ResponseEntity<Map> response = createRestTemplate(timeout == null ? 120000 : timeout)
                 .postForEntity(normalizeChatCompletionsEndpoint(provider, endpoint), new HttpEntity<>(requestBody, headers), Map.class);
         return extractContent(response.getBody());
+    }
+
+    private Optional<LlmProfileService.LlmRuntimeProfile> resolveProfile(String configCode) {
+        if (configCode != null && !configCode.isBlank()) {
+            return llmProfileService.findByCode(configCode.trim());
+        }
+        return llmProfileService.findDefaultEnabled();
     }
 
     @SuppressWarnings("unchecked")

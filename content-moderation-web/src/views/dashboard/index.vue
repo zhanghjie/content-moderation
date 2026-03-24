@@ -1,5 +1,29 @@
 <template>
   <div class="dashboard-page">
+    <div class="home-banner">
+      <div class="home-banner-inner">
+        <div class="home-banner-main">
+          <div class="home-banner-kicker">
+            <span class="home-banner-kicker-dot" />
+            <span class="home-banner-kicker-text">SKILL OS</span>
+            <span class="home-banner-kicker-sep" />
+            <span class="home-banner-kicker-text">PRECISION PULSE</span>
+          </div>
+          <div class="home-banner-title-row">
+            <div class="home-banner-title">Anything Is Skill</div>
+            <div class="home-banner-badges">
+              <span class="home-banner-badge is-primary">LIVE</span>
+              <span class="home-banner-badge">DASHBOARD</span>
+            </div>
+          </div>
+          <div class="home-banner-subtitle">把能力做成 Skill，让编排更简单</div>
+        </div>
+        <div class="home-banner-metric">
+          <div class="home-banner-metric-label">SYSTEM STATUS</div>
+          <div class="home-banner-metric-value">ONLINE</div>
+        </div>
+      </div>
+    </div>
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="page-title-wrapper">
@@ -15,16 +39,6 @@
         <el-icon><Refresh /></el-icon>
         刷新数据
       </el-button>
-    </div>
-
-    <div class="skill-slogan-panel">
-      <div class="slogan-glow"></div>
-      <div class="slogan-content">
-        <div class="slogan-kicker">SYSTEM MANIFESTO</div>
-        <div class="slogan-text">Anything  IS  Skill</div>
-        <div class="slogan-desc">把任何能力都抽象为可编排、可执行、可演进的 Skill 单元</div>
-      </div>
-      <div class="slogan-pulse"></div>
     </div>
 
     <!-- 核心能力状态 -->

@@ -14,6 +14,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PromptComposer {
 
+    private static final String BASE_RULES = String.join("\n",
+            "## 基础规则（Base Rules）",
+            "1. Anything IS Module：把任何能力都抽象为可编排、可执行、可演进的模块单元。",
+            "2. 所有分析步骤必须可追溯，结论必须可解释。",
+            "3. 输出必须结构化、确定且可被程序稳定解析。"
+    );
+
     private final PromptModuleManageService promptModuleManageService;
     private final ObjectMapper objectMapper;
 
@@ -29,7 +36,8 @@ public class PromptComposer {
                 .map(content -> applyVariables(content, variables))
                 .collect(Collectors.joining("\n\n"));
 
-        return new ComposedPrompt(selected, prompt);
+        String finalPrompt = BASE_RULES + "\n\n" + prompt;
+        return new ComposedPrompt(selected, finalPrompt);
     }
 
     public ComposedPrompt composeHostViolation(List<String> moduleCodes, Map<String, String> variables) {
