@@ -1,16 +1,22 @@
 <template>
   <div class="skill-factory-page">
+    <el-card shadow="never" class="header-card">
+      <div class="header-row">
+        <div>
+          <h1 class="title">Skill 注册工厂</h1>
+          <p class="subtitle">此页用于创建、管理和部署各类可执行技能</p>
+        </div>
+        <el-space>
+          <el-button :loading="loading" @click="loadSkills">刷新</el-button>
+          <el-button type="primary" @click="openCreateDialog">新增技能</el-button>
+        </el-space>
+      </div>
+    </el-card>
+
     <el-card shadow="never" class="panel-card">
       <template #header>
-        <div class="header-row">
-          <div>
-            <h2 class="title">技能创建</h2>
-            <p class="subtitle">支持新增技能，并展示当前技能列表</p>
-          </div>
-          <el-space>
-            <el-button :loading="loading" @click="loadSkills">刷新列表</el-button>
-            <el-button type="primary" @click="openCreateDialog">新增技能</el-button>
-          </el-space>
+        <div class="panel-header">
+          <h2 class="panel-title">技能列表</h2>
         </div>
       </template>
       <el-table :data="pagedSkills" row-key="skillId" max-height="480">
@@ -36,18 +42,13 @@
         </el-table-column>
       </el-table>
       <div class="pagination-row">
-        <div class="pagination-text">
-          共 {{ skills.length }} 条 
-          <el-select v-model="pageSize" style="width: 90px">
-            <el-option v-for="size in [10,20,50,100]" :key="size" :label="`${size} 条`" :value="size" />
-          </el-select>
-          第 {{ currentPage }} / {{ totalPages }} 页
-        </div>
         <el-pagination
           v-model:current-page="currentPage"
           :total="skills.length"
           :page-size="pageSize"
-          layout="prev, pager, next"
+          layout="total, prev, pager, next, sizes"
+          :page-sizes="[10, 20, 50, 100]"
+          @size-change="(val) => pageSize = val"
         />
       </div>
     </el-card>
@@ -83,10 +84,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="Prompt">
-          <el-input v-model="promptText" type="textarea" :rows="4" placeholder="输入给LLM的提示词模板" />
+          <el-input v-model="promptText" type="textarea" :rows="6" placeholder="输入给LLM的提示词模板" />
         </el-form-item>
         <el-form-item label="返回Schema">
-          <el-input v-model="outputSchemaText" type="textarea" :rows="4" placeholder='例如：{"result":"string"}' />
+          <el-input v-model="outputSchemaText" type="textarea" :rows="6" placeholder='例如：{"result":"string"}' />
         </el-form-item>
         <el-form-item label="脚本文件">
           <el-space direction="vertical" alignment="start" style="width: 100%">
@@ -98,11 +99,10 @@
             >
               <el-button>上传 .py 文件</el-button>
             </el-upload>
-            <el-text v-if="scriptFileName" type="info">当前文件：{{ scriptFileName }}</el-text>
+            <el-button v-if="scriptFileName" type="link" @click="scriptPreviewVisible = true">
+              预览文件：{{ scriptFileName }}
+            </el-button>
           </el-space>
-        </el-form-item>
-        <el-form-item label="脚本内容预览">
-          <el-input v-model="scriptContentText" type="textarea" :rows="8" readonly />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -114,6 +114,12 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="scriptPreviewVisible" :title="`脚本预览：${scriptFileName}`" width="800px">
+      <el-input v-model="scriptContentText" type="textarea" :rows="20" readonly />
+      <template #footer>
+        <el-button @click="scriptPreviewVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -151,6 +157,7 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const selectedSkillId = ref('')
 const skillDialogVisible = ref(false)
+const scriptPreviewVisible = ref(false)
 const promptText = ref('')
 const outputSchemaText = ref('{}')
 const scriptContentText = ref('print("hello skill")')
@@ -209,7 +216,7 @@ const loadSkills = async () => {
   loading.value = true
   try {
     const res = await skillOsApi.listSkills()
-    skills.value = (res.skills || []).slice().sort((a, b) => a.skillId.localeCompare(b.skillId))
+    skills.value = (res.skills || []).slice().sort((a, b) => b.skillId.localeCompare(a.skillId))
     const maxPage = Math.max(1, Math.ceil(skills.value.length / pageSize.value))
     if (currentPage.value > maxPage) {
       currentPage.value = maxPage
@@ -470,6 +477,7 @@ watch(skillDialogVisible, visible => {
   margin: 0;
   font-size: 22px;
   color: #1e293b;
+  font-weight: 600;
 }
 
 .subtitle {
@@ -478,10 +486,15 @@ watch(skillDialogVisible, visible => {
   font-size: 14px;
 }
 
+.panel-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .pagination-row {
-  margin-top: 12px;
+  margin-top: 16px;
   display: flex;
   justify-content: flex-end;
 }
-
 </style>
