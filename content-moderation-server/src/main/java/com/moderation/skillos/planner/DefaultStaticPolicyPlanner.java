@@ -57,6 +57,32 @@ public class DefaultStaticPolicyPlanner implements StaticPolicyPlanner {
                     .metadata(Map.of("stepOrder", i + 1))
                     .build());
         }
+        
+        // 追加 OUTPUT Skill（固定，不可修改）
+        String outputSkillId = "output_1774514701619";
+        int outputStepOrder = pipeline.size() + 1;
+        steps.add(ExecutionPlanStep.builder()
+                .stepId("step_" + outputStepOrder)
+                .stepOrder(outputStepOrder)
+                .skillId(outputSkillId)
+                .skillSnapshot(buildSkillSnapshot(outputSkillId, skillRegistry.get(outputSkillId)))
+                .mode("SKILL")
+                .timeoutMs(3000)
+                .retryPolicy(Map.of("maxAttempts", 1))
+                .dependsOn(steps.isEmpty() ? List.of() : List.of("step_" + (outputStepOrder - 1)))
+                .inputBindings(Map.of("source", "state"))
+                .outputBindings(Map.of("target", "output"))
+                .onFailure("STOP")
+                .build());
+        decisions.add(PlannerDecision.builder()
+                .type("select_skill")
+                .stepId("step_" + outputStepOrder)
+                .candidates(List.of(outputSkillId))
+                .chosen(outputSkillId)
+                .reason("自动追加 OUTPUT Skill，将 Policy 输出转换为标准 VideoAnalyzeRes 格式")
+                .metadata(Map.of("stepOrder", outputStepOrder, "autoAppended", true))
+                .build());
+        
         Map<String, Object> plannerMeta = new LinkedHashMap<>();
         plannerMeta.put("planLayer", "STATIC");
         plannerMeta.put("pipelineSize", steps.size());

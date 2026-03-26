@@ -7,12 +7,16 @@ import com.moderation.model.res.PromptModulesRes;
 import com.moderation.model.res.TaskListRes;
 import com.moderation.prompt.PromptCatalogService;
 import com.moderation.service.VideoAnalysisService;
+import com.moderation.skillos.engine.PolicyExecuteResult;
+import com.moderation.skillos.engine.PolicyExecutionEngine;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * 视频分析控制器
@@ -26,6 +30,7 @@ public class VideoAnalysisController {
     
     private final VideoAnalysisService videoAnalysisService;
     private final PromptCatalogService promptCatalogService;
+    private final PolicyExecutionEngine policyExecutionEngine;
     
     @PostMapping("/analyze")
     @Operation(summary = "发起视频分析", description = "对指定视频进行 AI 分析，识别违规行为")
@@ -33,6 +38,45 @@ public class VideoAnalysisController {
         log.info("Video analyze request: {}", req);
         VideoAnalyzeRes result = videoAnalysisService.analyze(req);
         return BaseResult.success(result);
+    }
+    
+    @PostMapping("/analyze-and-save")
+    @Operation(summary = "执行 Policy 并保存任务", description = "基于 Policy 执行分析，自动追加 OUTPUT Skill 转换格式，并保存任务")
+    public BaseResult<VideoAnalyzeRes> analyzeAndSave(@RequestBody @Validated VideoAnalyzeReq req) {
+        log.info("Video analyze and save request: {}", req);
+        
+        // 1. 构建 Policy 执行输入
+        Map<String, Object> input = Map.of(
+            "callId", req.getCallId(),
+            "contentId", req.getContentId(),
+            "videoUrl", req.getVideoUrl(),
+            "coverUrl", req.getCoverUrl(),
+            "analysisType", req.getAnalysisType(),
+            "userId", req.getUserId()
+        );
+        
+        // 2. 执行 Policy（内部会自动追加 OUTPUT Skill）
+        // TODO: 这里需要根据实际的 policyId 执行，当前先使用 req.getPolicyId()
+        String policyId = req.getAnalysisType() != null ? req.getAnalysisType().toLowerCase() + "-policy" : "default-policy";
+        
+        try {
+            PolicyExecuteResult result = policyExecutionEngine.execute(policyId, input);
+            log.info("Policy executed, executionId: {}, success: {}", result.getExecutionId(), result.isSuccess());
+            
+            // 3. 从执行结果中提取 OUTPUT Skill 的输出
+            // TODO: 需要从 result.getState() 或 result.getTraces() 中获取最后一个 Skill 的输出
+            
+            // 临时返回
+            VideoAnalyzeRes res = VideoAnalyzeRes.builder()
+                .callId(req.getCallId())
+                .status("COMPLETED")
+                .build();
+            return BaseResult.success(res);
+            
+        } catch (Exception e) {
+            log.error("Policy execute failed, policyId: {}", policyId, e);
+            return BaseResult.failed("Policy 执行失败：" + e.getMessage());
+        }
     }
     
     @GetMapping("/result/{callId}")
