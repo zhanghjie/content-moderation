@@ -12,6 +12,7 @@ public class ExecutionPlanStep {
     private String stepId;
     private Integer stepOrder;
     private String skillId;
+    private Map<String, Object> skillSnapshot;
     private String mode;
     private Integer timeoutMs;
     private Map<String, Object> retryPolicy;

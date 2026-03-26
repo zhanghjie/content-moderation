@@ -89,7 +89,11 @@ public class DefaultPlanExecutor implements PlanExecutor {
                             .build());
                     break;
                 }
-                state.put(skillId, result.getOutput());
+                Map<String, Object> outputData = normalizeOutput(result.getOutput());
+                state.put(skillId, outputData);
+                applyStateMapping(skill, outputData, state.getData());
+                applyWriteToState(outputData, state.getData());
+                state.put("finalResult", outputData);
                 traces.add(SkillExecutionTrace.builder()
                         .traceId(newTraceId())
                         .stepId(step.getStepId())
@@ -127,6 +131,102 @@ public class DefaultPlanExecutor implements PlanExecutor {
                 .errorMessage(errorMessage)
                 .executionStatus(executionStatus)
                 .build();
+    }
+
+    private void applyStateMapping(SkillDefinition skill, Map<String, Object> output, Map<String, Object> state) {
+        if (skill == null || skill.getStateMapping() == null || skill.getStateMapping().isEmpty()) {
+            return;
+        }
+        Object writeToStateObj = skill.getStateMapping().get("write_to_state");
+        if (!(writeToStateObj instanceof Map<?, ?> writeToStateMap) || writeToStateMap.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<?, ?> entry : writeToStateMap.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            String outputKey = String.valueOf(entry.getKey());
+            Object targetPathObj = entry.getValue();
+            if (targetPathObj == null) {
+                continue;
+            }
+            String targetPath = String.valueOf(targetPathObj).trim();
+            if (targetPath.isBlank()) {
+                continue;
+            }
+            if (output.containsKey(outputKey)) {
+                putStateValue(state, normalizeStatePath(targetPath), output.get(outputKey));
+            }
+        }
+    }
+
+    private void applyWriteToState(Map<String, Object> output, Map<String, Object> state) {
+        Object writeToStateObj = output.get("writeToState");
+        if (!(writeToStateObj instanceof Map<?, ?> writeToStateMap) || writeToStateMap.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<?, ?> entry : writeToStateMap.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            String targetPath = String.valueOf(entry.getKey()).trim();
+            if (targetPath.isBlank()) {
+                continue;
+            }
+            putStateValue(state, normalizeStatePath(targetPath), entry.getValue());
+        }
+    }
+
+    private Map<String, Object> normalizeOutput(Object output) {
+        if (output instanceof Map<?, ?> map) {
+            Map<String, Object> normalized = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() != null) {
+                    normalized.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+            }
+            return normalized;
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        normalized.put("value", output);
+        return normalized;
+    }
+
+    private String normalizeStatePath(String path) {
+        String normalized = path == null ? "" : path.trim();
+        if (normalized.startsWith("state.")) {
+            normalized = normalized.substring("state.".length());
+        } else if ("state".equalsIgnoreCase(normalized)) {
+            normalized = "";
+        }
+        return normalized;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void putStateValue(Map<String, Object> state, String path, Object value) {
+        if (state == null || path == null || path.isBlank()) {
+            return;
+        }
+        String[] parts = path.split("\\.");
+        Map<String, Object> current = state;
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i].trim();
+            if (part.isBlank()) {
+                continue;
+            }
+            if (i == parts.length - 1) {
+                current.put(part, value);
+                return;
+            }
+            Object next = current.get(part);
+            if (!(next instanceof Map<?, ?>)) {
+                Map<String, Object> nested = new LinkedHashMap<>();
+                current.put(part, nested);
+                current = nested;
+                continue;
+            }
+            current = (Map<String, Object>) next;
+        }
     }
 
     @SuppressWarnings("unchecked")

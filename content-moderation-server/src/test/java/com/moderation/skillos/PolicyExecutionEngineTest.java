@@ -15,6 +15,9 @@ import com.moderation.mapper.PolicyExecutionMapper;
 import com.moderation.mapper.PolicyExecutionStepMapper;
 import com.moderation.skillos.model.PolicyDefinition;
 import com.moderation.skillos.planner.DefaultPolicyPlanner;
+import com.moderation.skillos.planner.DefaultDynamicPolicyPlanner;
+import com.moderation.skillos.planner.DefaultReplanner;
+import com.moderation.skillos.planner.DefaultStaticPolicyPlanner;
 import com.moderation.skillos.registry.PolicyRegistry;
 import com.moderation.skillos.registry.SkillRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,10 +52,14 @@ class PolicyExecutionEngineTest {
         applicationContext.getBeanFactory().registerSingleton("violationCallInBedSkillExecutor", new ViolationCallInBedSkillExecutor());
         applicationContext.getBeanFactory().registerSingleton("violationBlackScreenSkillExecutor", new ViolationBlackScreenSkillExecutor());
         applicationContext.getBeanFactory().registerSingleton("violationAggregateSkillExecutor", new ViolationAggregateSkillExecutor());
+        DefaultStaticPolicyPlanner staticPolicyPlanner = new DefaultStaticPolicyPlanner(skillRegistry);
+        DefaultDynamicPolicyPlanner dynamicPolicyPlanner = new DefaultDynamicPolicyPlanner(skillRegistry);
+        DefaultReplanner replanner = new DefaultReplanner(skillRegistry);
         policyExecutionEngine = new PolicyExecutionEngine(
                 policyRegistry,
-                new DefaultPolicyPlanner(),
+                new DefaultPolicyPlanner(staticPolicyPlanner, dynamicPolicyPlanner),
                 new DefaultPlanExecutor(skillRegistry, applicationContext),
+                replanner,
                 Mockito.mock(PolicyExecutionMapper.class),
                 Mockito.mock(PolicyExecutionStepMapper.class),
                 Mockito.mock(PolicyExecutionFeedbackMapper.class),

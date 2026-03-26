@@ -119,7 +119,9 @@ export const skillOsApi = {
     return res.data
   },
   executePolicy: async (payload: { policyId: string; input: Record<string, any> }) => {
-    const res = await request.post<PolicyExecuteRes>('/execute', payload)
+    const res = await request.post<PolicyExecuteRes>('/execute', payload, {
+      timeout: 120000
+    })
     return res.data
   },
   getLatestExecution: async (policyId: string) => {

@@ -79,6 +79,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '项目管理' }
       },
       {
+        path: 'settings/execution-journey',
+        name: 'ExecutionJourney',
+        component: () => import('@/views/settings/ExecutionJourney.vue'),
+        meta: { title: '执行链路说明' }
+      },
+      {
         path: 'settings/skills',
         name: 'SkillFactory',
         component: () => import('@/views/settings/SkillFactory.vue'),

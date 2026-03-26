@@ -161,6 +161,11 @@ print_title() {
 # 函数：启动所有服务
 start_all() {
     print_title "启动内容风控系统"
+
+    # 启动前强制清理旧进程，避免 PID 文件残留或端口占用导致重复启动失败
+    print_info "启动前清理旧进程..."
+    stop_all
+    sleep 1
     
     # 启动后端
     print_info "正在启动后端服务..."
@@ -186,8 +191,8 @@ start_all() {
     print_title "启动完成"
     echo ""
     echo "后端服务："
-    echo "  - API 地址：http://localhost:8080"
-    echo "  - Swagger UI: http://localhost:8080/swagger-ui.html"
+    echo "  - API 地址：http://localhost:9891"
+    echo "  - Swagger UI: http://localhost:9891/swagger-ui.html"
     echo ""
     echo "前端服务："
     echo "  - 访问地址：http://localhost:3000"
@@ -196,6 +201,13 @@ start_all() {
     echo "  - 后端日志：bash $0 logs-backend"
     echo "  - 前端日志：bash $0 logs-frontend"
     echo ""
+
+    if [ -f "$BACKEND_DIR/logs/server.log" ]; then
+        print_info "开始在当前终端输出后端日志（Ctrl+C 可停止跟随）..."
+        tail -f "$BACKEND_DIR/logs/server.log"
+    else
+        print_warning "后端日志文件不存在，跳过日志跟随：$BACKEND_DIR/logs/server.log"
+    fi
 }
 
 # 函数：停止所有服务
@@ -225,8 +237,8 @@ stop_all() {
         kill_tree "$BACK_PID" "backend(pidfile)" 8
         rm -f "$BACKEND_DIR/.server.pid" 2>/dev/null || true
     fi
-    kill_by_port 8080 "backend"
-    wait_port_free 8080 "backend" 10
+    kill_by_port 9891 "backend"
+    wait_port_free 9891 "backend" 10
     
     print_info "所有服务已停止"
 }

@@ -9,7 +9,7 @@ import { resolve } from 'path'
 // https://vite.dev/config/
 export default defineConfig(() => {
   const env = loadEnv(process.env.NODE_ENV || 'development', process.cwd(), '')
-  const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080'
+  const apiTarget = env.VITE_API_TARGET || 'http://localhost:9891'
   return {
     plugins: [
       vue(),

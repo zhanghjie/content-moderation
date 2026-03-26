@@ -70,6 +70,7 @@ declare module 'vue' {
     PageHeader: typeof import('./src/components/PageHeader/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SchemaValueRenderer: typeof import('./src/components/SchemaValueRenderer.vue')['default']
     SearchForm: typeof import('./src/components/SearchForm/index.vue')['default']
     StatisticCard: typeof import('./src/components/StatisticCard/index.vue')['default']
   }

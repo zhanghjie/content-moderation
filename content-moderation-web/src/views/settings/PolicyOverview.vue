@@ -7,6 +7,7 @@
           <p class="subtitle">此页展示摘要，详细编排与新增编辑在独立页面完成</p>
         </div>
         <el-space>
+          <el-button @click="openExecutionJourney">执行链路说明</el-button>
           <el-button :loading="loadingPolicies" @click="loadPolicies">刷新</el-button>
           <el-button type="primary" @click="openEditorForCreate">新建编排</el-button>
           <el-button :disabled="!activePolicy" @click="openEditorForEdit">打开完整编排</el-button>
@@ -150,6 +151,14 @@ const openEditorForCreate = () => {
 const openEditorForEdit = () => {
   if (!activePolicy.value) return
   router.push({ path: '/settings/policies/editor', query: { policyId: activePolicy.value.policyId } })
+}
+
+const openExecutionJourney = () => {
+  const query: Record<string, string> = {}
+  if (activePolicy.value?.policyId) {
+    query.policyId = activePolicy.value.policyId
+  }
+  router.push({ path: '/settings/execution-journey', query })
 }
 
 const deletePolicy = async (policy: PolicyDefinition) => {

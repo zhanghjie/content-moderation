@@ -80,8 +80,8 @@ start() {
     
     print_info "服务已启动 (PID: $PID)"
     print_info "日志文件：$LOG_FILE"
-    print_info "访问地址：http://localhost:8080"
-    print_info "Swagger UI: http://localhost:8080/swagger-ui.html"
+    print_info "访问地址：http://localhost:9891"
+    print_info "Swagger UI: http://localhost:9891/swagger-ui.html"
 }
 
 # 函数：停止服务

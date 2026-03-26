@@ -221,7 +221,8 @@ const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
     title: '系统管理',
     items: [
       { label: '系统设置', icon: Setting, route: '/settings/api' },
-      { label: '项目管理', icon: Files, route: '/settings/projects' }
+      { label: '项目管理', icon: Files, route: '/settings/projects' },
+      { label: '执行链路说明', icon: Setting, route: '/settings/execution-journey' }
     ]
   }
 ]

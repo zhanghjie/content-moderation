@@ -115,11 +115,11 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
                 .resultJson(task.getResultJson())
                 .moderationResult(task.getModerationResult() != null
                         ? task.getModerationResult()
-                        : (TaskStatus.fromCode(task.getStatus()) == TaskStatus.COMPLETED
+                        : (isCompleted(task.getStatus())
                         ? ModerationResultEnum.NOT_HIT.getCode()
                         : null));
 
-        if (TaskStatus.fromCode(task.getStatus()) == TaskStatus.COMPLETED && task.getResultJson() != null) {
+        if (isCompleted(task.getStatus()) && task.getResultJson() != null) {
             ParsedResult parsed = parseResultJson(task.getResultJson());
             builder.violations(parsed.violations).summary(parsed.summary);
         }
@@ -145,29 +145,9 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
         wrapper.orderByDesc("created_at");
 
         Page<VideoAnalysisTaskEntity> pageResult = videoAnalysisTaskMapper.selectPage(new Page<>(p, ps), wrapper);
-        List<VideoAnalyzeRes> list = pageResult.getRecords().stream().map(task -> {
-            VideoAnalyzeRes.VideoAnalyzeResBuilder builder = VideoAnalyzeRes.builder()
-                    .taskId(task.getTaskId())
-                    .callId(task.getCallId())
-                    .contentId(task.getContentId())
-                    .videoUrl(task.getVideoUrl())
-                    .coverUrl(task.getCoverUrl())
-                    .status(task.getStatus())
-                    .analysisType(task.getAnalysisType())
-                    .userId(task.getUserId())
-                    .promptModules(task.getPromptModules())
-                    .overallConfidence(task.getOverallConfidence())
-                    .createdAt(task.getCreatedAt())
-                    .completedAt(task.getCompletedAt())
-                    .errorMessage(task.getErrorMessage())
-                    .moderationResult(task.getModerationResult());
-
-            if (TaskStatus.fromCode(task.getStatus()) == TaskStatus.COMPLETED && task.getResultJson() != null) {
-                ParsedResult parsed = parseResultJson(task.getResultJson());
-                builder.violations(parsed.violations).summary(parsed.summary);
-            }
-            return builder.build();
-        }).toList();
+        List<VideoAnalyzeRes> list = pageResult.getRecords().stream()
+                .map(this::toListItemSafely)
+                .toList();
 
         return TaskListRes.builder()
                 .total(pageResult.getTotal())
@@ -237,6 +217,9 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
     private record ParsedResult(List<ViolationDTO> violations, VideoSummaryDTO summary) {}
 
     private ParsedResult parseResultJson(String json) {
+        if (json == null || json.isBlank()) {
+            return new ParsedResult(new ArrayList<>(), new VideoSummaryDTO());
+        }
         try {
             JsonNode root = objectMapper.readTree(json);
             List<ViolationDTO> violations = new ArrayList<>();
@@ -246,7 +229,8 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
                     ViolationDTO dto = new ViolationDTO();
                     dto.setType(v.path("type").asText());
                     dto.setDetected(v.path("detected").asBoolean(false));
-                    dto.setConfidence(v.path("confidence").isNumber() ? v.path("confidence").asDouble() : 0.0);
+                    Double confidence = readDoubleCompat(v, "confidence", "confidence");
+                    dto.setConfidence(confidence != null ? confidence : 0.0);
                     dto.setEvidence(v.path("evidence").asText());
                     dto.setStartSec(readIntCompat(v, "start_sec", "startSec"));
                     dto.setEndSec(readIntCompat(v, "end_sec", "endSec"));
@@ -258,11 +242,9 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
             JsonNode summaryNode = root.path("summary");
             Integer total = readIntCompat(summaryNode, "total_violations", "totalViolations");
             Integer high = readIntCompat(summaryNode, "high_confidence_count", "highConfidenceCount");
-            String primary = summaryNode.path("primary_violation").asText(summaryNode.path("primaryViolation").asText(null));
+            String primary = readTextCompat(summaryNode, "primary_violation", "primaryViolation");
             Integer durationSec = readIntCompat(root, "video_duration_sec", "videoDurationSec");
-            Double overall = summaryNode.path("overall_confidence").isNumber()
-                    ? summaryNode.path("overall_confidence").asDouble()
-                    : (summaryNode.path("overallConfidence").isNumber() ? summaryNode.path("overallConfidence").asDouble() : null);
+            Double overall = readDoubleCompat(summaryNode, "overall_confidence", "overallConfidence");
             if (total == null) total = (int) violations.stream().filter(v -> Boolean.TRUE.equals(v.getDetected())).count();
             if (high == null) high = (int) violations.stream().filter(v -> Boolean.TRUE.equals(v.getDetected()) && v.getConfidence() != null && v.getConfidence() >= 0.85).count();
             if (primary == null || primary.isBlank()) {
@@ -275,8 +257,60 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
             summary.setOverallConfidence(overall);
             return new ParsedResult(violations, summary);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse LLM result JSON: " + e.getMessage(), e);
+            log.warn("Failed to parse task result JSON, fallback to empty summary. task result will still be returned safely. error={}", e.getMessage());
+            return new ParsedResult(new ArrayList<>(), new VideoSummaryDTO());
         }
+    }
+
+    private VideoAnalyzeRes toListItemSafely(VideoAnalysisTaskEntity task) {
+        try {
+            VideoAnalyzeRes.VideoAnalyzeResBuilder builder = VideoAnalyzeRes.builder()
+                    .taskId(task.getTaskId())
+                    .callId(task.getCallId())
+                    .contentId(task.getContentId())
+                    .videoUrl(task.getVideoUrl())
+                    .coverUrl(task.getCoverUrl())
+                    .status(task.getStatus())
+                    .analysisType(task.getAnalysisType())
+                    .userId(task.getUserId())
+                    .promptModules(task.getPromptModules())
+                    .overallConfidence(task.getOverallConfidence())
+                    .createdAt(task.getCreatedAt())
+                    .completedAt(task.getCompletedAt())
+                    .errorMessage(task.getErrorMessage())
+                    .moderationResult(task.getModerationResult());
+
+            if (isCompleted(task.getStatus()) && task.getResultJson() != null) {
+                ParsedResult parsed = parseResultJson(task.getResultJson());
+                builder.violations(parsed.violations).summary(parsed.summary);
+            }
+            return builder.build();
+        } catch (Exception e) {
+            log.warn("Failed to map task list item safely, taskId={}, callId={}, error={}",
+                    task.getTaskId(), task.getCallId(), e.getMessage());
+            return VideoAnalyzeRes.builder()
+                    .taskId(task.getTaskId())
+                    .callId(task.getCallId())
+                    .contentId(task.getContentId())
+                    .videoUrl(task.getVideoUrl())
+                    .coverUrl(task.getCoverUrl())
+                    .status(task.getStatus())
+                    .analysisType(task.getAnalysisType())
+                    .userId(task.getUserId())
+                    .promptModules(task.getPromptModules())
+                    .overallConfidence(task.getOverallConfidence())
+                    .createdAt(task.getCreatedAt())
+                    .completedAt(task.getCompletedAt())
+                    .errorMessage(task.getErrorMessage())
+                    .moderationResult(task.getModerationResult())
+                    .violations(new ArrayList<>())
+                    .summary(new VideoSummaryDTO())
+                    .build();
+        }
+    }
+
+    private boolean isCompleted(String status) {
+        return status != null && TaskStatus.COMPLETED.getCode().equalsIgnoreCase(status.trim());
     }
 
     private Integer readIntCompat(JsonNode node, String snake, String camel) {
@@ -285,6 +319,23 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
         if (v == null) v = node.get(camel);
         if (v == null || v.isNull() || !v.isNumber()) return null;
         return v.asInt();
+    }
+
+    private Double readDoubleCompat(JsonNode node, String snake, String camel) {
+        if (node == null || node.isMissingNode()) return null;
+        JsonNode v = node.get(snake);
+        if (v == null) v = node.get(camel);
+        if (v == null || v.isNull() || !v.isNumber()) return null;
+        return v.asDouble();
+    }
+
+    private String readTextCompat(JsonNode node, String snake, String camel) {
+        if (node == null || node.isMissingNode()) return null;
+        JsonNode v = node.get(snake);
+        if (v == null) v = node.get(camel);
+        if (v == null || v.isNull()) return null;
+        String text = v.asText();
+        return text == null || text.isBlank() ? null : text;
     }
 
 }

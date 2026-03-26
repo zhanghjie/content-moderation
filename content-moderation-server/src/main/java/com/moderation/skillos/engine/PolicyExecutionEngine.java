@@ -12,17 +12,21 @@ import com.moderation.mapper.PolicyExecutionStepMapper;
 import com.moderation.model.req.ExecutionFeedbackReq;
 import com.moderation.model.res.PolicyExecuteRes;
 import com.moderation.skillos.model.ExecutionPlan;
+import com.moderation.skillos.model.ExecutionPlanStep;
 import com.moderation.skillos.model.PolicyDefinition;
+import com.moderation.skillos.model.SkillResult;
 import com.moderation.skillos.model.SkillExecutionTrace;
 import com.moderation.skillos.planner.PolicyPlanner;
+import com.moderation.skillos.planner.Replanner;
 import com.moderation.skillos.registry.PolicyRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,6 +35,7 @@ public class PolicyExecutionEngine {
     private final PolicyRegistry policyRegistry;
     private final PolicyPlanner policyPlanner;
     private final PlanExecutor planExecutor;
+    private final Replanner replanner;
     private final PolicyExecutionMapper policyExecutionMapper;
     private final PolicyExecutionStepMapper policyExecutionStepMapper;
     private final PolicyExecutionFeedbackMapper policyExecutionFeedbackMapper;
@@ -49,6 +54,13 @@ public class PolicyExecutionEngine {
         }
         ExecutionPlan plan = policyPlanner.plan(policy, safeInput);
         PlanExecuteResult planResult = planExecutor.execute(plan, policy, safeInput);
+        if (!planResult.isSuccess()) {
+            Optional<ExecutionPlan> replanned = tryReplan(plan, policy, safeInput, planResult);
+            if (replanned.isPresent()) {
+                plan = replanned.get();
+                planResult = planExecutor.execute(plan, policy, safeInput);
+            }
+        }
         persistExecution(plan, planResult);
         persistAutoFeedback(plan.getExecutionId(), planResult);
 
@@ -64,6 +76,41 @@ public class PolicyExecutionEngine {
                 .traces(planResult.getTraces())
                 .errorMessage(planResult.getErrorMessage())
                 .build();
+    }
+
+    private Optional<ExecutionPlan> tryReplan(ExecutionPlan plan, PolicyDefinition policy, Map<String, Object> input, PlanExecuteResult result) {
+        if (replanner == null || result == null || result.getState() == null) {
+            return Optional.empty();
+        }
+        ExecutionPlanStep failedStep = findFailedStep(plan, result.getTraces());
+        if (failedStep == null) {
+            return Optional.empty();
+        }
+        SkillResult failedResult = SkillResult.failed(result.getErrorMessage() == null ? "运行时执行失败" : result.getErrorMessage());
+        return replanner.replan(plan, policy, input, result.getState(), failedStep, failedResult);
+    }
+
+    private ExecutionPlanStep findFailedStep(ExecutionPlan plan, List<SkillExecutionTrace> traces) {
+        if (plan == null || plan.getSteps() == null || traces == null || traces.isEmpty()) {
+            return null;
+        }
+        List<SkillExecutionTrace> reversed = new ArrayList<>(traces);
+        for (int i = reversed.size() - 1; i >= 0; i--) {
+            SkillExecutionTrace trace = reversed.get(i);
+            if (trace == null || trace.isSuccess() || trace.isSkipped()) {
+                continue;
+            }
+            String stepId = trace.getStepId();
+            if (stepId == null) {
+                continue;
+            }
+            for (ExecutionPlanStep step : plan.getSteps()) {
+                if (step != null && stepId.equals(step.getStepId())) {
+                    return step;
+                }
+            }
+        }
+        return null;
     }
 
     public PolicyExecuteRes getExecutionById(String executionId) {

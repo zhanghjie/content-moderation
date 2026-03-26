@@ -222,23 +222,37 @@
           <div class="json-section">
             <div class="json-panel full">
               <div class="json-panel-header">
-                <span>执行输入</span>
+                <span>Policy 执行快照</span>
                 <el-space>
-                  <el-button text size="small" @click="copyText(runInputText)">复制</el-button>
-                  <el-button text size="small" @click="openJsonDialog('执行输入', runInputText)">放大</el-button>
+                  <el-button text size="small" @click="copyText(executionPlanText)">复制</el-button>
+                  <el-button text size="small" @click="openJsonDialog('Policy 执行快照', executionPlanText)">放大</el-button>
                 </el-space>
               </div>
-              <el-input v-model="runInputText" type="textarea" :rows="7" />
+              <SchemaValueRenderer
+                v-if="policySnapshot"
+                :value="policySnapshot"
+                :schema="policySnapshotSchema"
+                label=""
+                :depth="0"
+              />
+              <el-empty v-else description="暂无执行快照" :image-size="70" />
             </div>
-            <div class="json-panel">
+            <div class="json-panel full">
               <div class="json-panel-header">
-                <span>AI解析结果</span>
+                <span>最终结果</span>
                 <el-space>
                   <el-button text size="small" @click="copyText(aiParsedResultText)">复制</el-button>
-                  <el-button text size="small" @click="openJsonDialog('AI解析结果', aiParsedResultText)">放大</el-button>
+                  <el-button text size="small" @click="openJsonDialog('最终结果', aiParsedResultText)">放大</el-button>
                 </el-space>
               </div>
-              <pre class="json-view" :class="{ wrap: stateResultWrap }">{{ aiParsedResultText }}</pre>
+              <SchemaValueRenderer
+                v-if="finalRenderedResult !== null && finalRenderedResult !== undefined"
+                :value="finalRenderedResult"
+                :schema="finalRenderedSchema"
+                label=""
+                :depth="0"
+              />
+              <el-empty v-else description="暂无结果" :image-size="70" />
             </div>
             <div class="json-panel">
               <div class="json-panel-header">
@@ -255,6 +269,28 @@
 
         <el-tab-pane label="节点明细" name="traces">
           <div class="trace-layout">
+            <div v-if="planSteps.length" class="step-render-list">
+              <div v-for="step in planSteps" :key="step.stepId" class="step-render-card">
+                <div class="step-render-header">
+                  <div>
+                    <div class="step-render-title">{{ step.skillSnapshot?.name || step.skillId }}</div>
+                    <div class="step-render-subtitle">{{ step.skillId }} · {{ step.skillSnapshot?.version || 'v1' }}</div>
+                  </div>
+                  <el-tag size="small" effect="plain">Step {{ step.stepOrder }}</el-tag>
+                </div>
+                <div class="step-render-body">
+                  <SchemaValueRenderer
+                    :value="getTraceByStepId(step.stepId)?.output || executeResult?.state?.[step.skillId] || null"
+                    :schema="step.skillSnapshot?.outputSchema || null"
+                    :title="step.skillSnapshot?.outputSchema?.title || step.skillSnapshot?.name || step.skillId"
+                    :description="step.skillSnapshot?.outputSchema?.description || step.skillSnapshot?.description || ''"
+                    empty-text="暂无输出"
+                    :depth="0"
+                  />
+                </div>
+              </div>
+            </div>
+
             <el-table
               :data="traceRows"
               size="small"
@@ -280,7 +316,14 @@
                     <el-button text size="small" @click="openJsonDialog('节点输入', selectedTraceInputText)">放大</el-button>
                   </el-space>
                 </div>
-                <pre class="json-view" :class="{ wrap: stateResultWrap }">{{ selectedTraceInputText }}</pre>
+                <SchemaValueRenderer
+                  v-if="selectedTrace"
+                  :value="selectedTrace?.input"
+                  :schema="selectedTraceInputSchema"
+                  label=""
+                  :depth="0"
+                />
+                <pre v-else class="json-view" :class="{ wrap: stateResultWrap }">{{ selectedTraceInputText }}</pre>
               </div>
               <div class="json-panel">
                 <div class="json-panel-header">
@@ -290,7 +333,14 @@
                     <el-button text size="small" @click="openJsonDialog('节点输出', selectedTraceOutputText)">放大</el-button>
                   </el-space>
                 </div>
-                <pre class="json-view" :class="{ wrap: stateResultWrap }">{{ selectedTraceOutputText }}</pre>
+                <SchemaValueRenderer
+                  v-if="selectedTrace"
+                  :value="selectedTrace?.output"
+                  :schema="selectedTraceOutputSchema"
+                  label=""
+                  :depth="0"
+                />
+                <pre v-else class="json-view" :class="{ wrap: stateResultWrap }">{{ selectedTraceOutputText }}</pre>
               </div>
             </div>
           </div>
@@ -342,10 +392,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { skillOsApi, type PolicyDefinition, type PolicyExecuteRes, type SkillDefinition } from '@/api/skillos'
+import SchemaValueRenderer from '@/components/SchemaValueRenderer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -384,6 +435,7 @@ const selectedTraceIndex = ref(0)
 const jsonDialogVisible = ref(false)
 const jsonDialogTitle = ref('')
 const jsonDialogContent = ref('')
+let latestExecutionFallbackTimer: number | null = null
 
 const form = ref<PolicyDefinition>({
   policyId: '',
@@ -396,8 +448,35 @@ const form = ref<PolicyDefinition>({
 
 const isPolicySelected = computed(() => policies.value.some(item => item.policyId === form.value.policyId))
 
+const executionPlan = computed<any | null>(() => executeResult.value?.plan || null)
+const policySnapshot = computed<any | null>(() => executionPlan.value?.policySnapshot || null)
+const planSteps = computed<any[]>(() => executionPlan.value?.steps || [])
+const finalStep = computed<any | null>(() => {
+  const steps = planSteps.value
+  if (!steps.length) return null
+  return steps[steps.length - 1] || null
+})
+const finalRenderedResult = computed(() => getAiParsedResult(executeResult.value))
+const finalRenderedSchema = computed(() => finalStep.value?.skillSnapshot?.outputSchema || null)
+const policySnapshotSchema = computed(() => ({
+  type: 'object',
+  title: 'Policy Snapshot',
+  properties: {
+    policyId: { type: 'string', title: 'Policy ID' },
+    name: { type: 'string', title: '名称' },
+    version: { type: 'string', title: '版本' },
+    skillPipeline: {
+      type: 'array',
+      title: 'Skill Pipeline',
+      items: { type: 'string' }
+    },
+    config: { type: 'object', title: 'Config' },
+    executionInput: { type: 'object', title: 'Execution Input' }
+  }
+}))
+
 const executeResultText = computed(() => JSON.stringify(executeResult.value?.state || {}, null, 2))
-const executePlanText = computed(() => JSON.stringify(executeResult.value?.plan || {}, null, 2))
+const executePlanText = computed(() => JSON.stringify(executionPlan.value || {}, null, 2))
 const executeTracesText = computed(() => JSON.stringify(executeResult.value?.traces || [], null, 2))
 const traceRows = computed(() => executeResult.value?.traces || [])
 const selectedTrace = computed<any | null>(() => {
@@ -406,6 +485,13 @@ const selectedTrace = computed<any | null>(() => {
   const safeIndex = Math.min(Math.max(selectedTraceIndex.value, 0), rows.length - 1)
   return rows[safeIndex] || null
 })
+const selectedTraceStep = computed<any | null>(() => {
+  if (!selectedTrace.value) return null
+  const stepId = selectedTrace.value?.stepId
+  return planSteps.value.find(step => step.stepId === stepId) || null
+})
+const selectedTraceInputSchema = computed(() => selectedTraceStep.value?.skillSnapshot?.stateMapping || null)
+const selectedTraceOutputSchema = computed(() => selectedTraceStep.value?.skillSnapshot?.outputSchema || null)
 const selectedTraceInputText = computed(() => formatTraceOutput(selectedTrace.value?.input))
 const selectedTraceOutputText = computed(() => formatTraceOutput(selectedTrace.value?.output))
 const aiParsedResultText = computed(() => {
@@ -577,6 +663,11 @@ const getAiParsedResult = (result: PolicyExecuteRes | null) => {
     }
   }
   return null
+}
+
+const getTraceByStepId = (stepId: string) => {
+  const traces = executeResult.value?.traces || []
+  return (traces as any[]).find(trace => trace?.stepId === stepId) || null
 }
 
 const formatTraceOutput = (value: any) => {
@@ -968,6 +1059,10 @@ const runPolicy = async () => {
   }
   executing.value = true
   try {
+    if (latestExecutionFallbackTimer != null) {
+      window.clearTimeout(latestExecutionFallbackTimer)
+      latestExecutionFallbackTimer = null
+    }
     const result = await skillOsApi.executePolicy({
       policyId: form.value.policyId.trim(),
       input: parseRunInput()
@@ -976,6 +1071,17 @@ const runPolicy = async () => {
     executeResultByPolicy.value[form.value.policyId.trim()] = result
     ElMessage.success(executeResult.value.success ? '执行完成' : '执行结束但存在失败节点')
   } catch (error: any) {
+    const message = String(error?.message || '')
+    if (message.includes('timeout') || message.includes('超时')) {
+      ElMessage.warning('执行请求超时，系统将自动回查最近一次执行结果')
+      latestExecutionFallbackTimer = window.setTimeout(async () => {
+        await loadLatestExecution(form.value.policyId.trim())
+        if (!executeResult.value) {
+          ElMessage.error('执行超时且未查到最近结果，请稍后手动刷新')
+        }
+      }, 1200)
+      return
+    }
     ElMessage.error(error?.message || '执行失败')
   } finally {
     executing.value = false
@@ -998,6 +1104,13 @@ const loadLatestExecution = async (policyId: string) => {
 
 onMounted(async () => {
   await Promise.all([loadPolicies(), loadSkills()])
+})
+
+onUnmounted(() => {
+  if (latestExecutionFallbackTimer != null) {
+    window.clearTimeout(latestExecutionFallbackTimer)
+    latestExecutionFallbackTimer = null
+  }
 })
 
 watch(
@@ -1765,6 +1878,44 @@ watch(
   gap: 10px;
 }
 
+.step-render-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step-render-card {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.96);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.step-render-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.step-render-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.step-render-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.step-render-body {
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  padding-top: 10px;
+}
+
 .trace-table {
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 10px;
@@ -1803,6 +1954,18 @@ watch(
 @media (max-width: 1100px) {
   .state-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trace-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .step-render-list {
+    order: 1;
+  }
+
+  .trace-table {
+    order: 2;
   }
 
   .trace-layout {

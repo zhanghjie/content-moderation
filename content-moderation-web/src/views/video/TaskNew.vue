@@ -58,7 +58,7 @@
         <el-form-item>
           <el-button type="primary" @click="handleSubmit" :loading="submitting" :disabled="submitting">
             <el-icon><Position /></el-icon>
-            提交分析
+            创建任务并异步执行
           </el-button>
           <el-button @click="handleReset">重置</el-button>
         </el-form-item>
@@ -167,7 +167,7 @@ async function handleSubmit() {
   
   submitting.value = true
   try {
-    await videoApi.analyze({
+    const task = await videoApi.analyze({
       callId: form.analysisType === 'HOST_VIOLATION' ? form.contentId : form.callId,
       contentId: form.contentId,
       analysisType: form.analysisType,
@@ -176,8 +176,8 @@ async function handleSubmit() {
       videoUrl: form.videoUrl,
       coverUrl: form.coverUrl || undefined
     })
-    ElMessage.success('提交成功')
-    router.push('/video/tasks')
+    ElMessage.success(`任务已创建，状态：${task.status || 'PENDING'}，正在异步执行`)
+    router.push(`/video/${task.callId}`)
   } catch (error) {
     ElMessage.error('提交失败')
   } finally {

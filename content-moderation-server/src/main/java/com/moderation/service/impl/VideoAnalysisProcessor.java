@@ -103,6 +103,9 @@ public class VideoAnalysisProcessor {
     private record ParsedResult(List<ViolationDTO> violations, VideoSummaryDTO summary) {}
 
     private ParsedResult parseResultJson(String json) {
+        if (json == null || json.isBlank()) {
+            return new ParsedResult(new ArrayList<>(), new VideoSummaryDTO());
+        }
         try {
             JsonNode root = objectMapper.readTree(json);
             List<ViolationDTO> violations = new ArrayList<>();
@@ -136,7 +139,8 @@ public class VideoAnalysisProcessor {
             summary.setPrimaryViolation(primary);
             return new ParsedResult(violations, summary);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse LLM result JSON: " + e.getMessage(), e);
+            log.warn("Failed to parse video analysis result JSON, fallback to empty summary. error={}", e.getMessage());
+            return new ParsedResult(new ArrayList<>(), new VideoSummaryDTO());
         }
     }
 

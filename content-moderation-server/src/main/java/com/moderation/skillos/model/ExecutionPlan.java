@@ -1,5 +1,6 @@
 package com.moderation.skillos.model;
 
+import com.moderation.skillos.planner.PlannerDecision;
 import lombok.Builder;
 import lombok.Data;
 
@@ -14,7 +15,10 @@ public class ExecutionPlan {
     private String executionId;
     private String policyId;
     private String version;
+    private String planType;
     private OffsetDateTime generatedAt;
+    private Map<String, Object> policySnapshot;
     private Map<String, Object> plannerMeta;
+    private List<PlannerDecision> plannerDecisions;
     private List<ExecutionPlanStep> steps;
 }
