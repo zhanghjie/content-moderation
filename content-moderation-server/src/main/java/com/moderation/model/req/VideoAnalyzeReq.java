@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 视频分析请求
@@ -50,7 +51,19 @@ public class VideoAnalyzeReq {
     private Long userId;
 
     /**
+     * 选择的 Policy ID
+     */
+    @NotBlank(message = "policyId is required for analyze-and-save")
+    private String policyId;
+
+    /**
      * Prompt 模块编码列表（可选，不传则使用默认组合）
      */
     private List<String> promptModules;
+
+    /**
+     * Policy 执行输入（动态字段，根据 Policy 定义传入）
+     * 例如：{"roomId": "xxx", "anchorId": "yyy"}
+     */
+    private Map<String, Object> policyInput;
 }

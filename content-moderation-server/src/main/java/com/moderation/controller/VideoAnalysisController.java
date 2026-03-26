@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -45,22 +46,22 @@ public class VideoAnalysisController {
     public BaseResult<VideoAnalyzeRes> analyzeAndSave(@RequestBody @Validated VideoAnalyzeReq req) {
         log.info("Video analyze and save request: {}", req);
         
-        // 1. 构建 Policy 执行输入
-        Map<String, Object> input = Map.of(
-            "callId", req.getCallId(),
-            "contentId", req.getContentId(),
-            "videoUrl", req.getVideoUrl(),
-            "coverUrl", req.getCoverUrl(),
-            "analysisType", req.getAnalysisType(),
-            "userId", req.getUserId()
-        );
+        // 1. 合并基础参数和动态 policyInput
+        Map<String, Object> input = new LinkedHashMap<>();
+        if (req.getPolicyInput() != null) {
+            input.putAll(req.getPolicyInput());
+        }
+        // 覆盖/补充基础字段
+        input.put("callId", req.getCallId());
+        input.put("contentId", req.getContentId());
+        input.put("videoUrl", req.getVideoUrl());
+        input.put("coverUrl", req.getCoverUrl());
+        input.put("analysisType", req.getAnalysisType());
+        input.put("userId", req.getUserId());
         
-        // 2. 执行 Policy（内部会自动追加 OUTPUT Skill）
-        // TODO: 这里需要根据实际的 policyId 执行，当前先使用 req.getPolicyId()
-        String policyId = req.getAnalysisType() != null ? req.getAnalysisType().toLowerCase() + "-policy" : "default-policy";
-        
+        // 2. 执行 Policy（自动追加 OUTPUT Skill）
         try {
-            PolicyExecuteResult result = policyExecutionEngine.execute(policyId, input);
+            PolicyExecuteResult result = policyExecutionEngine.execute(req.getPolicyId(), input);
             log.info("Policy executed, executionId: {}, success: {}", result.getExecutionId(), result.isSuccess());
             
             // 3. 从执行结果中提取 OUTPUT Skill 的输出
@@ -74,7 +75,7 @@ public class VideoAnalysisController {
             return BaseResult.success(res);
             
         } catch (Exception e) {
-            log.error("Policy execute failed, policyId: {}", policyId, e);
+            log.error("Policy execute failed, policyId: {}", req.getPolicyId(), e);
             return BaseResult.failed("Policy 执行失败：" + e.getMessage());
         }
     }
