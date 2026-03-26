@@ -64,29 +64,22 @@
     <el-card shadow="never" class="table-card precision-table-card">
       <el-table :data="tableData" v-loading="loading" style="width: 100%"
         :header-cell-style="{ background: 'rgba(22, 27, 35, 0.012)', color: 'var(--text-secondary)', fontWeight: '600' }">
-        <el-table-column prop="taskId" label="Task ID" min-width="160" show-overflow-tooltip>
+        <el-table-column label="调用标识" min-width="200">
           <template #default="{ row }">
-            <span class="id-text">{{ row.taskId }}</span>
+            <div class="call-info">
+              <div class="call-id">{{ row.callId }}</div>
+              <div class="analysis-type">{{ getAnalysisTypeText(row.analysisType) }}</div>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="callId" label="Call ID" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="id-text">{{ row.callId }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="contentId" label="Content ID" min-width="120" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="id-text">{{ row.contentId }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="任务状态" min-width="100">
+        <el-table-column prop="status" label="任务状态" width="120">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" effect="plain" size="small" round class="precision-tag" :class="[getStatusBadgeClass(row.status), { 'processing-tag': row.status === 'PROCESSING' }]">
               {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="moderationResult" label="违规命中" min-width="120">
+        <el-table-column prop="moderationResult" label="违规命中" width="120">
           <template #default="{ row }">
             <el-tag v-if="row.moderationResult" :type="getResultType(row.moderationResult)" effect="plain" size="small" round class="precision-tag" :class="getResultBadgeClass(row.moderationResult)">
               <el-icon v-if="isViolationHit(row.moderationResult)" class="hit-alert-icon"><WarningFilled /></el-icon>
@@ -95,27 +88,15 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="违规数" min-width="90" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.violations?.filter((v: any) => v.detected).length" type="danger" effect="plain" size="small" round class="precision-tag">
-              {{ row.violations.filter((v: any) => v.detected).length }}
-            </el-tag>
-            <span v-else class="zero-count mono">0</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" min-width="160">
+        <el-table-column prop="createdAt" label="创建时间" width="160">
           <template #default="{ row }">
             <span class="date-text mono">{{ formatDate(row.createdAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140" align="center">
+        <el-table-column label="操作" width="120" align="center">
           <template #default="{ row }">
             <el-button class="action-btn detail-btn" @click="router.push(`/video/${row.callId}`)">
               详情 <el-icon><ArrowRight /></el-icon>
-            </el-button>
-            <el-button v-if="row.status === 'FAILED'" link class="retry-btn" @click="handleReAnalyze(row)">
-              <el-icon><Refresh /></el-icon>
-              重试
             </el-button>
           </template>
         </el-table-column>
@@ -140,8 +121,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Search, Document, Clock, Loading, CircleCheck, Refresh, ArrowRight, WarningFilled } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Plus, Search, Document, Clock, Loading, CircleCheck, ArrowRight, WarningFilled } from '@element-plus/icons-vue'
 import { videoApi } from '@/api/video'
 import type { VideoAnalysisTask } from '@/types/video'
 
@@ -228,6 +208,15 @@ function isViolationHit(result: string) {
   return result === 'HIT'
 }
 
+function getAnalysisTypeText(type?: string): string {
+  if (!type) return 'STANDARD'
+  const typeMap: Record<string, string> = {
+    STANDARD: '标准分析',
+    HOST_VIOLATION: '主播违规'
+  }
+  return typeMap[type] || type
+}
+
 function formatDate(dateStr: string) {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleString('zh-CN', {
@@ -286,10 +275,6 @@ function handleReset() {
   searchForm.result = ''
   pagination.page = 1
   loadData()
-}
-
-function handleReAnalyze(row: VideoAnalysisTask) {
-  ElMessage.info(`重新分析：${row.callId}`)
 }
 
 onMounted(() => {
@@ -632,6 +617,25 @@ onMounted(() => {
   letter-spacing: 0.01em;
 }
 
+.call-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.call-id {
+  font-family: "Inter", "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1e293b;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.analysis-type {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 400;
+}
+
 .precision-tag {
   border-radius: 999px;
   border: 1px solid transparent !important;
@@ -711,11 +715,6 @@ onMounted(() => {
   color: #98a2b3;
 }
 
-.zero-count {
-  color: #047857;
-  font-weight: 700;
-}
-
 .date-text {
   color: #5c6676;
   font-size: 13px;
@@ -743,19 +742,6 @@ onMounted(() => {
   transform: translateX(1px);
   border-color: #2563eb;
   color: #1d4ed8;
-}
-
-.retry-btn {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-weight: 600;
-  font-size: 13px;
-  color: #d97706;
-}
-
-.retry-btn:hover {
-  color: #b45309;
 }
 
 .pagination-wrapper {
