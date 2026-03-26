@@ -111,15 +111,28 @@ public class LlmProfileServiceImpl implements LlmProfileService {
     }
 
     private LlmRuntimeProfile toRuntime(LlmConfigProfileEntity item) {
+        String apiKey = resolveApiKey(item.getApiKeyEnc());
         return new LlmRuntimeProfile(
                 item.getConfigCode(),
                 item.getProvider(),
                 item.getEndpoint(),
                 item.getModel(),
-                cryptoService.decrypt(item.getApiKeyEnc()),
+                apiKey,
                 item.getTimeoutMs(),
                 item.getMaxTokens()
         );
+    }
+
+    private String resolveApiKey(String apiKeyEnc) {
+        if (apiKeyEnc == null || apiKeyEnc.isBlank()) {
+            return apiKeyEnc;
+        }
+        try {
+            String decrypted = cryptoService.decrypt(apiKeyEnc);
+            return decrypted == null || decrypted.isBlank() ? apiKeyEnc : decrypted;
+        } catch (Exception ignored) {
+            return apiKeyEnc;
+        }
     }
 
     private LlmProfileRes toRes(LlmConfigProfileEntity item) {
