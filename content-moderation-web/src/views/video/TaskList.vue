@@ -7,7 +7,7 @@
       </div>
       <el-button type="primary" @click="router.push('/video/new')" class="create-btn precision-primary-btn">
         <el-icon><Plus /></el-icon>
-        发起分析
+        新建任务
       </el-button>
     </div>
 

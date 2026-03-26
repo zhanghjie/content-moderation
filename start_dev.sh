@@ -13,8 +13,9 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 项目配置
-BACKEND_DIR="/Users/zhanghaojie/IdeaProjects/content-moderation/content-moderation-server"
-FRONTEND_DIR="/Users/zhanghaojie/IdeaProjects/content-moderation/content-moderation-web"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR/content-moderation-server"
+FRONTEND_DIR="$SCRIPT_DIR/content-moderation-web"
 BACKEND_SCRIPT="$BACKEND_DIR/start.sh"
 FRONTEND_SCRIPT="$FRONTEND_DIR/start.sh"
 

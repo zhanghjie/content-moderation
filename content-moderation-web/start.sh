@@ -12,8 +12,9 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # 项目配置
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_NAME="content-moderation-web"
-PROJECT_DIR="/Users/zhanghaojie/IdeaProjects/content-moderation/content-moderation-web"
+PROJECT_DIR="$SCRIPT_DIR"
 PID_FILE="$PROJECT_DIR/.frontend.pid"
 LOG_FILE="$PROJECT_DIR/logs/frontend.log"
 

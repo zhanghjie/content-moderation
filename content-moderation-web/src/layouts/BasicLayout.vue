@@ -169,7 +169,6 @@ import {
   Moon,
   Search,
   Menu,
-  Promotion,
   Warning,
   ArrowDown,
   SwitchButton
@@ -206,7 +205,6 @@ const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
     title: '任务管理',
     items: [
       { label: '分析任务', icon: VideoCamera, route: '/video/tasks' },
-      { label: '发起分析', icon: Promotion, route: '/video/new' },
       { label: '违规事件', icon: Warning, route: '/violations' }
     ]
   },
@@ -214,15 +212,16 @@ const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
     title: '数据仓库',
     items: [
       { label: '服务画像', icon: User, route: '/profile' },
-      { label: '治理标签', icon: Files, route: '/tags' }
+      { label: '治理标签', icon: Files, route: '/tags' },
+      { label: 'Skill 注册', icon: Setting, route: '/settings/skills' },
+      { label: 'Policy 配置', icon: Setting, route: '/settings/policies' }
     ]
   },
   {
     title: '系统管理',
     items: [
       { label: '系统设置', icon: Setting, route: '/settings/api' },
-      { label: 'Skill 注册', icon: Setting, route: '/settings/skills' },
-      { label: 'Policy 配置', icon: Setting, route: '/settings/policies' }
+      { label: '项目管理', icon: Files, route: '/settings/projects' }
     ]
   }
 ]
@@ -266,6 +265,7 @@ function isRouteActive(itemRoute: string) {
   if (itemRoute === '/video/new') return route.path === '/video/new'
   if (itemRoute === '/profile') return isProfilePath(route.path)
   if (itemRoute === '/settings/api') return route.path.startsWith('/settings/api')
+  if (itemRoute === '/settings/projects') return route.path.startsWith('/settings/projects')
   if (itemRoute === '/settings/skills') return route.path.startsWith('/settings/skills')
   if (itemRoute === '/settings/policies') return route.path.startsWith('/settings/policies')
   return route.path === itemRoute

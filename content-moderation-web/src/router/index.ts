@@ -21,8 +21,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'video/new',
         name: 'VideoNew',
-        component: () => import('@/views/video/TaskNew.vue'),
-        meta: { title: '发起分析' }
+        component: () => import('@/views/video/PolicyTaskNew.vue'),
+        meta: { title: '任务创建' }
       },
       {
         path: 'video/:callId',
@@ -71,6 +71,12 @@ const routes: RouteRecordRaw[] = [
         name: 'SettingsSystem',
         component: () => import('@/views/settings/SystemInfo.vue'),
         meta: { title: '系统信息' }
+      },
+      {
+        path: 'settings/projects',
+        name: 'ProjectManage',
+        component: () => import('@/views/settings/ProjectManage.vue'),
+        meta: { title: '项目管理' }
       },
       {
         path: 'settings/skills',

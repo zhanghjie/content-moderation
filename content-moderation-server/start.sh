@@ -12,14 +12,20 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # 项目配置
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_NAME="content-moderation-server"
-PROJECT_DIR="/Users/zhanghaojie/IdeaProjects/content-moderation/content-moderation-server"
+PROJECT_DIR="$SCRIPT_DIR"
 PID_FILE="$PROJECT_DIR/.server.pid"
 LOG_FILE="$PROJECT_DIR/logs/server.log"
 
 # JDK 配置
-export JAVA_HOME="/Users/zhanghaojie/Library/Java/JavaVirtualMachines/ms-17.0.16/Contents/Home"
-export PATH="$JAVA_HOME/bin:$PATH"
+if [ -z "$JAVA_HOME" ] && command -v java >/dev/null 2>&1; then
+    JAVA_BIN_DIR="$(dirname "$(readlink -f "$(command -v java)")")"
+    export JAVA_HOME="$(cd "$JAVA_BIN_DIR/.." && pwd)"
+fi
+if [ -n "$JAVA_HOME" ]; then
+    export PATH="$JAVA_HOME/bin:$PATH"
+fi
 
 # 函数：打印信息
 print_info() {
