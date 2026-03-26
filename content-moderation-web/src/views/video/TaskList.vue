@@ -62,57 +62,105 @@
     </el-card>
 
     <el-card shadow="never" class="table-card precision-table-card">
-      <el-table :data="tableData" v-loading="loading" style="width: 100%"
-        :header-cell-style="{ background: 'rgba(22, 27, 35, 0.012)', color: 'var(--text-secondary)', fontWeight: '600' }">
-        <el-table-column label="调用标识" min-width="200">
-          <template #default="{ row }">
-            <div class="call-info">
-              <div class="call-id">{{ row.callId }}</div>
-              <div class="analysis-type">{{ getAnalysisTypeText(row.analysisType) }}</div>
+      <div class="task-list-container" v-loading="loading">
+        <div class="task-list-body">
+          <div 
+            v-for="task in tableData" 
+            :key="task.taskId" 
+            class="task-card"
+            :class="['task-status-' + task.status.toLowerCase(), 'task-result-' + (task.moderationResult || 'unknown').toLowerCase()]"
+            @click="router.push(`/video/${task.callId}`)"
+          >
+            <!-- 第一行：主信息区 -->
+            <div class="task-card-main">
+              <div class="task-card-left">
+                <div class="status-indicator" :class="'status-' + task.status.toLowerCase()">
+                  <span class="status-dot"></span>
+                  <el-icon v-if="task.status === 'COMPLETED'" class="status-icon"><CircleCheck /></el-icon>
+                  <el-icon v-else-if="task.status === 'FAILED'" class="status-icon"><WarningFilled /></el-icon>
+                  <el-icon v-else-if="task.status === 'PROCESSING'" class="status-icon spinning"><Loading /></el-icon>
+                </div>
+                <div class="task-identity">
+                  <div class="task-call-id">{{ task.callId }}</div>
+                  <div class="task-analysis-type">{{ getAnalysisTypeText(task.analysisType) }}</div>
+                </div>
+              </div>
+              <div class="task-card-actions" @click.stop>
+                <el-button 
+                  class="action-detail-btn" 
+                  @click="router.push(`/video/${task.callId}`)"
+                  title="查看详情"
+                >
+                  <el-icon><ArrowRight /></el-icon>
+                </el-button>
+              </div>
             </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="任务状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" effect="plain" size="small" round class="precision-tag" :class="[getStatusBadgeClass(row.status), { 'processing-tag': row.status === 'PROCESSING' }]">
-              {{ getStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="moderationResult" label="违规命中" width="120">
-          <template #default="{ row }">
-            <el-tag v-if="row.moderationResult" :type="getResultType(row.moderationResult)" effect="plain" size="small" round class="precision-tag" :class="getResultBadgeClass(row.moderationResult)">
-              <el-icon v-if="isViolationHit(row.moderationResult)" class="hit-alert-icon"><WarningFilled /></el-icon>
-              {{ getResultText(row.moderationResult) }}
-            </el-tag>
-            <span v-else class="text-muted">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="160">
-          <template #default="{ row }">
-            <span class="date-text mono">{{ formatDate(row.createdAt) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" align="center">
-          <template #default="{ row }">
-            <el-button class="action-btn detail-btn" @click="router.push(`/video/${row.callId}`)">
-              详情 <el-icon><ArrowRight /></el-icon>
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
 
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.pageSize"
-          :total="pagination.total"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next"
-          @size-change="loadData"
-          @current-change="loadData"
-          class="custom-pagination"
-        />
+            <!-- 第二行：辅助信息 -->
+            <div class="task-card-meta">
+              <div class="meta-item">
+                <el-icon class="meta-icon"><Document /></el-icon>
+                <span class="meta-label">分析类型</span>
+                <span class="meta-value">{{ getAnalysisTypeText(task.analysisType) }}</span>
+              </div>
+            </div>
+
+            <!-- 第三行：执行信息 -->
+            <div class="task-card-info">
+              <span class="info-item mono">
+                <el-icon class="info-icon"><Clock /></el-icon>
+                {{ formatDateTime(task.createdAt) }}
+              </span>
+              <span class="info-divider" v-if="task.completedAt && task.createdAt">｜</span>
+              <span class="info-item mono" v-if="task.completedAt && task.createdAt">
+                耗时 {{ calculateDuration(task.createdAt, task.completedAt) }}
+              </span>
+            </div>
+
+            <!-- 第四行：结果标签区 -->
+            <div class="task-card-footer">
+              <div class="task-status-badge">
+                <el-tag :type="getStatusType(task.status)" effect="plain" size="small" round>
+                  <span class="status-dot-small" :class="'status-' + task.status.toLowerCase()"></span>
+                  {{ getStatusText(task.status) }}
+                </el-tag>
+              </div>
+              <div class="task-result-badge">
+                <el-tag 
+                  v-if="task.moderationResult" 
+                  :type="getResultType(task.moderationResult)" 
+                  effect="plain" 
+                  size="small"
+                  round
+                  :class="'result-' + task.moderationResult.toLowerCase()"
+                >
+                  <el-icon v-if="task.moderationResult === 'HIT'" class="result-icon"><WarningFilled /></el-icon>
+                  {{ getResultText(task.moderationResult) }}
+                </el-tag>
+                <span v-else class="result-placeholder">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-if="!loading && tableData.length === 0" class="empty-state">
+            <el-empty description="暂无任务记录" />
+          </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination-wrapper">
+          <el-pagination
+            v-model:current-page="pagination.page"
+            v-model:page-size="pagination.pageSize"
+            :total="pagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            @size-change="loadData"
+            @current-change="loadData"
+            class="custom-pagination"
+          />
+        </div>
       </div>
     </el-card>
   </div>
@@ -121,7 +169,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Search, Document, Clock, Loading, CircleCheck, ArrowRight, WarningFilled } from '@element-plus/icons-vue'
+import { Plus, Search, Document, Clock, Loading, CircleCheck, ArrowRight, WarningFilled, Timer } from '@element-plus/icons-vue'
 import { videoApi } from '@/api/video'
 import type { VideoAnalysisTask } from '@/types/video'
 
@@ -225,6 +273,29 @@ function formatDate(dateStr: string) {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function formatDateTime(dateStr: string) {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
+function calculateDuration(startStr: string, endStr: string): string {
+  if (!startStr || !endStr) return '-'
+  const start = new Date(startStr).getTime()
+  const end = new Date(endStr).getTime()
+  const duration = end - start
+  if (duration < 1000) return `${duration}ms`
+  if (duration < 60000) return `${Math.round(duration / 1000)}s`
+  const minutes = Math.floor(duration / 60000)
+  const seconds = Math.round((duration % 60000) / 1000)
+  return `${minutes}m ${seconds}s`
 }
 
 async function loadData() {
@@ -786,5 +857,317 @@ onMounted(() => {
 @keyframes processingScan {
   0% { transform: translateX(-120%); }
   100% { transform: translateX(120%); }
+}
+
+/* ===== 任务卡片列表样式 ===== */
+.task-list-container {
+  padding: 0;
+}
+
+.task-list-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+}
+
+.task-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37, 99, 235, 0.3);
+  box-shadow: 0 8px 24px rgba(15, 36, 82, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.task-card:active {
+  transform: translateY(0);
+}
+
+/* 状态主题色边框 */
+.task-status-pending { border-left: 3px solid #f59e0b; }
+.task-status-processing { border-left: 3px solid #3b82f6; }
+.task-status-completed { border-left: 3px solid #10b981; }
+.task-status-failed { border-left: 3px solid #ef4444; }
+
+/* 第一行：主信息区 */
+.task-card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.task-card-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 状态指示器 */
+.status-indicator {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.status-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot-small {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+}
+
+.status-pending { color: #f59e0b; }
+.status-processing { color: #3b82f6; }
+.status-completed { color: #10b981; }
+.status-failed { color: #ef4444; }
+
+.status-icon {
+  font-size: 18px;
+  z-index: 1;
+}
+
+.status-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+/* 任务标识 */
+.task-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.task-call-id {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-analysis-type {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 400;
+}
+
+/* 操作按钮 */
+.task-card-actions {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all 0.15s ease;
+}
+
+.task-card:hover .task-card-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.action-detail-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(248, 250, 252, 0.8);
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.action-detail-btn:hover {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  transform: translateX(2px);
+}
+
+/* 第二行：辅助信息 */
+.task-card-meta {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.meta-icon {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.meta-label {
+  color: #94a3b8;
+}
+
+.meta-value {
+  color: #475569;
+  font-weight: 500;
+}
+
+/* 第三行：执行信息 */
+.task-card-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-icon {
+  font-size: 13px;
+}
+
+.info-divider {
+  color: #cbd5e1;
+  font-size: 10px;
+}
+
+/* 第四行：结果标签区 */
+.task-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-status-badge {
+  display: flex;
+  align-items: center;
+}
+
+.task-result-badge {
+  display: flex;
+  align-items: center;
+}
+
+.result-placeholder {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.result-not-hit {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  color: #059669 !important;
+}
+
+.result-hit {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #dc2626 !important;
+}
+
+.result-suspected {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: #d97706 !important;
+}
+
+.result-icon {
+  margin-right: 4px;
+  font-size: 14px;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+}
+
+/* 动画 */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .task-card {
+    padding: 12px;
+  }
+
+  .task-card-main {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .task-card-actions {
+    opacity: 1;
+    transform: none;
+    align-self: flex-end;
+  }
+
+  .task-card-meta {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .task-card-info {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .task-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
 }
 </style>
