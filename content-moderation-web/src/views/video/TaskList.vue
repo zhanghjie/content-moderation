@@ -9,51 +9,31 @@
         <el-icon><Plus /></el-icon>
         新建任务
       </el-button>
-    </div>
+  </div>
 
-    <el-card shadow="never" class="monitor-card">
-      <div class="monitor-grid">
-        <div v-for="item in statNodes" :key="item.key" class="monitor-cell" :class="`tone-${item.tone}`">
-          <div class="monitor-top">
-            <div class="monitor-icon">
-              <el-icon :size="14">
-                <component :is="item.icon" />
-              </el-icon>
-            </div>
-            <span class="monitor-label">{{ item.label }}</span>
-          </div>
-          <div class="monitor-value mono">{{ item.value }}</div>
-          <svg class="pulse-line" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true">
-            <path class="pulse-area" d="M0,24 C16,18 24,22 36,17 C52,13 60,21 72,15 C84,11 98,19 120,12 L120,28 L0,28 Z" />
-            <path class="pulse-curve" d="M0,24 C16,18 24,22 36,17 C52,13 60,21 72,15 C84,11 98,19 120,12" />
-          </svg>
-        </div>
-      </div>
-    </el-card>
-
-    <el-card shadow="never" class="search-card">
-      <el-form :model="searchForm" inline class="search-form">
-        <el-form-item label="Call ID" class="precision-item">
-          <el-input v-model="searchForm.callId" placeholder="请输入 Call ID" clearable class="search-input precision-input" />
+  <el-card shadow="never" class="search-card">
+      <el-form :model="searchForm" inline class="search-form-compact">
+        <el-form-item class="search-item-compact">
+          <el-input v-model="searchForm.callId" placeholder="Call ID" clearable class="search-input-compact" />
         </el-form-item>
-        <el-form-item label="任务状态" class="precision-item">
-          <el-select v-model="searchForm.status" placeholder="请选择" clearable class="search-select precision-input">
+        <el-form-item class="search-item-compact">
+          <el-select v-model="searchForm.status" placeholder="状态" clearable class="search-select-compact">
             <el-option label="待处理" value="PENDING" />
             <el-option label="处理中" value="PROCESSING" />
             <el-option label="已完成" value="COMPLETED" />
             <el-option label="失败" value="FAILED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="违规命中" class="precision-item">
-          <el-select v-model="searchForm.result" placeholder="请选择" clearable class="search-select precision-input">
-            <el-option label="未命中违规" value="NOT_HIT" />
-            <el-option label="命中违规" value="HIT" />
-            <el-option label="疑似命中" value="SUSPECTED" />
+        <el-form-item class="search-item-compact">
+          <el-select v-model="searchForm.result" placeholder="结果" clearable class="search-select-compact">
+            <el-option label="未命中" value="NOT_HIT" />
+            <el-option label="命中" value="HIT" />
+            <el-option label="疑似" value="SUSPECTED" />
           </el-select>
         </el-form-item>
-        <el-form-item class="search-actions">
-          <el-button @click="handleReset" class="reset-btn precision-action-btn">重置</el-button>
-          <el-button type="primary" @click="handleSearch" class="search-btn precision-action-btn">
+        <el-form-item class="search-actions-compact">
+          <el-button @click="handleReset" class="reset-btn-compact">重置</el-button>
+          <el-button type="primary" @click="handleSearch" class="search-btn-compact">
             <el-icon><Search /></el-icon>
             搜索
           </el-button>
@@ -63,82 +43,85 @@
 
     <el-card shadow="never" class="table-card precision-table-card">
       <div class="task-list-container" v-loading="loading">
+        <!-- 顶部统计区 - 紧凑版 -->
+        <div class="stats-bar">
+          <div class="stat-item">
+            <span class="stat-label">总数</span>
+            <span class="stat-value mono">{{ statistics.total }}</span>
+          </div>
+          <div class="stat-divider">|</div>
+          <div class="stat-item stat-pending">
+            <span class="stat-label">待处理</span>
+            <span class="stat-value mono">{{ statistics.pending }}</span>
+          </div>
+          <div class="stat-divider">|</div>
+          <div class="stat-item stat-processing">
+            <span class="stat-label">处理中</span>
+            <span class="stat-value mono">{{ statistics.processing }}</span>
+          </div>
+          <div class="stat-divider">|</div>
+          <div class="stat-item stat-completed">
+            <span class="stat-label">已完成</span>
+            <span class="stat-value mono">{{ statistics.completed }}</span>
+          </div>
+        </div>
+
+        <!-- 任务列表 -->
         <div class="task-list-body">
           <div 
             v-for="task in tableData" 
             :key="task.taskId" 
-            class="task-card"
-            :class="['task-status-' + task.status.toLowerCase(), 'task-result-' + (task.moderationResult || 'unknown').toLowerCase()]"
+            class="task-card task-row"
+            :class="['task-status-' + task.status.toLowerCase()]"
             @click="router.push(`/video/${task.callId}`)"
           >
-            <!-- 第一行：主信息区 -->
-            <div class="task-card-main">
-              <div class="task-card-left">
-                <div class="status-indicator" :class="'status-' + task.status.toLowerCase()">
-                  <span class="status-dot"></span>
-                  <el-icon v-if="task.status === 'COMPLETED'" class="status-icon"><CircleCheck /></el-icon>
-                  <el-icon v-else-if="task.status === 'FAILED'" class="status-icon"><WarningFilled /></el-icon>
-                  <el-icon v-else-if="task.status === 'PROCESSING'" class="status-icon spinning"><Loading /></el-icon>
+            <!-- 第一行：状态 + 调用 ID + 结果标签 -->
+            <div class="task-row-main">
+              <div class="task-row-left">
+                <div class="status-indicator-inline" :class="'status-' + task.status.toLowerCase()">
+                  <span class="status-dot-inline"></span>
+                  <el-icon v-if="task.status === 'COMPLETED'" class="status-icon-inline"><CircleCheck /></el-icon>
+                  <el-icon v-else-if="task.status === 'FAILED'" class="status-icon-inline"><WarningFilled /></el-icon>
+                  <el-icon v-else-if="task.status === 'PROCESSING'" class="status-icon-inline spinning"><Loading /></el-icon>
                 </div>
-                <div class="task-identity">
-                  <div class="task-call-id">{{ task.callId }}</div>
-                  <div class="task-analysis-type">{{ getAnalysisTypeText(task.analysisType) }}</div>
-                </div>
+                <span class="task-call-id-inline">{{ task.callId }}</span>
               </div>
-              <div class="task-card-actions" @click.stop>
-                <el-button 
-                  class="action-detail-btn" 
-                  @click="router.push(`/video/${task.callId}`)"
-                  title="查看详情"
-                >
-                  <el-icon><ArrowRight /></el-icon>
-                </el-button>
-              </div>
-            </div>
-
-            <!-- 第二行：辅助信息 -->
-            <div class="task-card-meta">
-              <div class="meta-item">
-                <el-icon class="meta-icon"><Document /></el-icon>
-                <span class="meta-label">分析类型</span>
-                <span class="meta-value">{{ getAnalysisTypeText(task.analysisType) }}</span>
-              </div>
-            </div>
-
-            <!-- 第三行：执行信息 -->
-            <div class="task-card-info">
-              <span class="info-item mono">
-                <el-icon class="info-icon"><Clock /></el-icon>
-                {{ formatDateTime(task.createdAt) }}
-              </span>
-              <span class="info-divider" v-if="task.completedAt && task.createdAt">｜</span>
-              <span class="info-item mono" v-if="task.completedAt && task.createdAt">
-                耗时 {{ calculateDuration(task.createdAt, task.completedAt) }}
-              </span>
-            </div>
-
-            <!-- 第四行：结果标签区 -->
-            <div class="task-card-footer">
-              <div class="task-status-badge">
-                <el-tag :type="getStatusType(task.status)" effect="plain" size="small" round>
-                  <span class="status-dot-small" :class="'status-' + task.status.toLowerCase()"></span>
+              <div class="task-row-right">
+                <el-tag :type="getStatusType(task.status)" effect="plain" size="small" class="status-tag-compact">
                   {{ getStatusText(task.status) }}
                 </el-tag>
-              </div>
-              <div class="task-result-badge">
                 <el-tag 
                   v-if="task.moderationResult" 
                   :type="getResultType(task.moderationResult)" 
                   effect="plain" 
                   size="small"
-                  round
+                  class="result-tag-compact"
                   :class="'result-' + task.moderationResult.toLowerCase()"
                 >
-                  <el-icon v-if="task.moderationResult === 'HIT'" class="result-icon"><WarningFilled /></el-icon>
                   {{ getResultText(task.moderationResult) }}
                 </el-tag>
-                <span v-else class="result-placeholder">-</span>
               </div>
+            </div>
+
+            <!-- 第二行：元数据信息 -->
+            <div class="task-row-meta">
+              <span class="meta-text">
+                <span class="meta-label">Host:</span>
+                <span class="meta-value">{{ task.callId.split('_')[0] || 'default' }}</span>
+              </span>
+              <span class="meta-divider">|</span>
+              <span class="meta-text">
+                <span class="meta-label">类型:</span>
+                <span class="meta-value">{{ getAnalysisTypeText(task.analysisType) }}</span>
+              </span>
+              <span class="meta-divider">|</span>
+              <span class="meta-text mono">
+                {{ formatDateTimeCompact(task.createdAt) }}
+              </span>
+              <span class="meta-divider" v-if="task.completedAt && task.createdAt">|</span>
+              <span class="meta-text mono" v-if="task.completedAt && task.createdAt">
+                {{ calculateDurationCompact(task.createdAt, task.completedAt) }}
+              </span>
             </div>
           </div>
 
@@ -188,13 +171,6 @@ const statistics = reactive({
   processing: 0,
   completed: 0
 })
-
-const statNodes = computed(() => [
-  { key: 'total', label: '总任务数', value: statistics.total, tone: 'primary', icon: Document },
-  { key: 'pending', label: '待处理', value: statistics.pending, tone: 'warning', icon: Clock },
-  { key: 'processing', label: '处理中', value: statistics.processing, tone: 'info', icon: Loading },
-  { key: 'completed', label: '已完成', value: statistics.completed, tone: 'success', icon: CircleCheck }
-])
 
 const tableData = ref<VideoAnalysisTask[]>([])
 
@@ -286,6 +262,16 @@ function formatDateTime(dateStr: string) {
   })
 }
 
+function formatDateTimeCompact(dateStr: string) {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${month}/${day} ${hour}:${minute}`
+}
+
 function calculateDuration(startStr: string, endStr: string): string {
   if (!startStr || !endStr) return '-'
   const start = new Date(startStr).getTime()
@@ -296,6 +282,17 @@ function calculateDuration(startStr: string, endStr: string): string {
   const minutes = Math.floor(duration / 60000)
   const seconds = Math.round((duration % 60000) / 1000)
   return `${minutes}m ${seconds}s`
+}
+
+function calculateDurationCompact(startStr: string, endStr: string): string {
+  if (!startStr || !endStr) return '-'
+  const start = new Date(startStr).getTime()
+  const end = new Date(endStr).getTime()
+  const duration = Math.floor((end - start) / 1000)
+  if (duration < 60) return `${duration}s`
+  const minutes = Math.floor(duration / 60)
+  const seconds = duration % 60
+  return `${minutes}m${seconds}s`
 }
 
 async function loadData() {
@@ -1126,6 +1123,307 @@ onMounted(() => {
   min-height: 300px;
 }
 
+/* ===== 紧凑样式 ===== */
+.task-list-page {
+  padding: 0;
+}
+
+.precision-pulse-page {
+  display: grid;
+  gap: 12px;
+  font-family: var(--font-sans);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.page-title-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 12px;
+  color: #6c7785;
+  margin: 0;
+}
+
+.create-btn {
+  height: 32px;
+  padding-inline: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* 紧凑统计条 */
+.stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: rgba(248, 250, 252, 0.6);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.stat-pending .stat-value { color: #f59e0b; }
+.stat-processing .stat-value { color: #3b82f6; }
+.stat-completed .stat-value { color: #10b981; }
+
+.stat-divider {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+/* 紧凑搜索区 */
+.search-card {
+  border-radius: 8px;
+}
+
+.search-card :deep(.el-card__body) {
+  padding: 12px 16px;
+}
+
+.search-form-compact {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+}
+
+.search-item-compact {
+  margin-bottom: 0;
+}
+
+.search-input-compact,
+.search-select-compact {
+  width: 140px;
+}
+
+.search-input-compact :deep(.el-input__wrapper),
+.search-select-compact :deep(.el-select__wrapper) {
+  height: 32px;
+  border-radius: 6px;
+  padding: 0 10px;
+}
+
+.search-input-compact :deep(.el-input__inner),
+.search-select-compact :deep(.el-input__inner) {
+  font-size: 13px;
+}
+
+.search-actions-compact {
+  margin-left: auto;
+  margin-bottom: 0;
+  display: flex;
+  gap: 8px;
+}
+
+.reset-btn-compact,
+.search-btn-compact {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+.search-btn-compact {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+}
+
+/* 紧凑任务列表 */
+.table-card {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table-card :deep(.el-card__body) {
+  padding: 12px;
+}
+
+.task-list-container {
+  padding: 0;
+}
+
+.task-list-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 任务行 - 紧凑两行结构 */
+.task-row {
+  padding: 12px 16px;
+  min-height: 80px;
+  max-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.task-row-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.task-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* 内联状态指示器 */
+.status-indicator-inline {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.status-dot-inline {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-icon-inline {
+  font-size: 16px;
+  z-index: 1;
+}
+
+.status-pending { color: #f59e0b; }
+.status-processing { color: #3b82f6; }
+.status-completed { color: #10b981; }
+.status-failed { color: #ef4444; }
+
+.task-call-id-inline {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.task-row-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.status-tag-compact,
+.result-tag-compact {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.result-not-hit {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  color: #059669 !important;
+}
+
+.result-hit {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #dc2626 !important;
+}
+
+.result-suspected {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: #d97706 !important;
+}
+
+/* 第二行：元数据 */
+.task-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.meta-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meta-label {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.meta-value {
+  color: #475569;
+  font-weight: 500;
+}
+
+.meta-divider {
+  color: #cbd5e1;
+  font-size: 10px;
+}
+
+/* 状态边框 */
+.task-status-pending { border-left: 3px solid #f59e0b; }
+.task-status-processing { border-left: 3px solid #3b82f6; }
+.task-status-completed { border-left: 3px solid #10b981; }
+.task-status-failed { border-left: 3px solid #ef4444; }
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
 /* 动画 */
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -1137,37 +1435,43 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
-  .task-card {
-    padding: 12px;
+  .task-row {
+    padding: 10px 12px;
   }
 
-  .task-card-main {
-    flex-direction: column;
-    gap: 12px;
+  .task-row-main {
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .task-card-actions {
-    opacity: 1;
-    transform: none;
-    align-self: flex-end;
+  .task-row-meta {
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .task-card-meta {
+  .stats-bar {
     flex-wrap: wrap;
     gap: 12px;
   }
 
-  .task-card-info {
+  .search-form-compact {
     flex-wrap: wrap;
-    gap: 12px;
   }
 
-  .task-card-footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+  .search-input-compact,
+  .search-select-compact {
+    width: 100%;
+  }
+
+  .search-actions-compact {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>
