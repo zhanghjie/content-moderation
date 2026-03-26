@@ -37,10 +37,17 @@ export interface PolicyDefinition {
 }
 
 export interface SkillExecutionTrace {
+  traceId?: string
+  stepId?: string
+  status?: string
   skillId: string
+  attempt?: number
   success: boolean
   skipped: boolean
   durationMs: number
+  startedAt?: string
+  endedAt?: string
+  input?: any
   output?: any
   message?: string
 }

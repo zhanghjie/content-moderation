@@ -316,7 +316,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Clock, Promotion, Refresh } from '@element-plus/icons-vue'
 import { skillOsApi, type PolicyDefinition, type PolicyExecuteRes, type SkillDefinition } from '@/api/skillos'
-import { loadProjects, type ProjectItem } from '@/utils/projectStore'
+import { projectApi, type ProjectItem } from '@/api/project'
 
 const router = useRouter()
 const route = useRoute()
@@ -333,6 +333,7 @@ const selectedPolicyId = ref('')
 const userIdText = ref('')
 const selectedProjectId = ref('')
 const result = ref<PolicyExecuteRes | null>(null)
+const latestExecution = computed(() => result.value)
 const activeResultTab = ref<'overview' | 'state' | 'traces' | 'raw'>('overview')
 const selectedTraceIndex = ref(0)
 
@@ -469,10 +470,13 @@ async function loadSkills() {
 async function loadProjectOptions() {
   loadingProjects.value = true
   try {
-    projects.value = loadProjects()
+    const res = await projectApi.listProjects()
+    projects.value = res.projects || []
     if (!selectedProjectId.value && projects.value.length) {
       selectedProjectId.value = projects.value[0].projectId
     }
+  } catch (error: any) {
+    ElMessage.error(error?.message || '加载项目列表失败')
   } finally {
     loadingProjects.value = false
   }

@@ -84,7 +84,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { addProject, deleteProject, loadProjects, saveProjects, updateProject, type ProjectItem } from '@/utils/projectStore'
+import { projectApi, type ProjectItem } from '@/api/project'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -99,10 +99,13 @@ const form = reactive({
   status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE'
 })
 
-function loadData() {
+async function loadData() {
   loading.value = true
   try {
-    projects.value = loadProjects()
+    const res = await projectApi.listProjects()
+    projects.value = res.projects || []
+  } catch (error: any) {
+    ElMessage.error(error?.message || '加载项目失败')
   } finally {
     loading.value = false
   }
@@ -140,21 +143,25 @@ async function saveProject() {
   saving.value = true
   try {
     if (dialogMode.value === 'edit') {
-      projects.value = updateProject(editingProjectId.value, {
+      const res = await projectApi.updateProject(editingProjectId.value, {
         name: form.name.trim(),
         description: form.description.trim(),
         status: form.status
       })
+      projects.value = res.projects || []
     } else {
-      projects.value = addProject({
+      const res = await projectApi.createProject({
         projectId: form.projectId.trim(),
         name: form.name.trim(),
         description: form.description.trim(),
         status: 'ACTIVE'
       })
+      projects.value = res.projects || []
     }
     dialogVisible.value = false
     ElMessage.success(dialogMode.value === 'edit' ? '项目已更新' : '项目创建成功')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '保存项目失败')
   } finally {
     saving.value = false
   }
@@ -162,10 +169,17 @@ async function saveProject() {
 
 async function toggleStatus(row: ProjectItem) {
   const nextStatus = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-  projects.value = saveProjects(
-    projects.value.map(item => (item.projectId === row.projectId ? { ...item, status: nextStatus } : item))
-  )
-  ElMessage.success(nextStatus === 'ACTIVE' ? '项目已启用' : '项目已停用')
+  try {
+    const res = await projectApi.updateProject(row.projectId, {
+      name: row.name,
+      description: row.description,
+      status: nextStatus
+    })
+    projects.value = res.projects || []
+    ElMessage.success(nextStatus === 'ACTIVE' ? '项目已启用' : '项目已停用')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '更新项目状态失败')
+  }
 }
 
 async function removeProject(projectId: string) {
@@ -174,13 +188,20 @@ async function removeProject(projectId: string) {
   } catch {
     return
   }
-  projects.value = deleteProject(projectId)
-  ElMessage.success('项目已删除')
+  try {
+    const res = await projectApi.deleteProject(projectId)
+    projects.value = res.projects || []
+    ElMessage.success('项目已删除')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '删除项目失败')
+  }
 }
 
 function formatDate(dateStr: string) {
   if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('zh-CN')
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString('zh-CN')
 }
 
 onMounted(() => {
