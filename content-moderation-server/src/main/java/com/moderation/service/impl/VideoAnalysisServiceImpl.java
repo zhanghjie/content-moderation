@@ -12,6 +12,8 @@ import com.moderation.model.res.TaskListRes;
 import com.moderation.model.res.VideoAnalyzeRes;
 import com.moderation.model.res.VideoAnalyzeRes.VideoSummaryDTO;
 import com.moderation.service.VideoAnalysisService;
+import com.moderation.skillos.engine.PolicyExecuteResult;
+import com.moderation.skillos.engine.PolicyExecutionEngine;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +23,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.Arrays;
@@ -37,6 +41,7 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
     private final VideoAnalysisTaskMapper videoAnalysisTaskMapper;
     private final ObjectMapper objectMapper;
     private final VideoAnalysisProcessor videoAnalysisProcessor;
+    private final PolicyExecutionEngine policyExecutionEngine;
 
     @Qualifier("videoAnalysisExecutor")
     private final Executor videoAnalysisExecutor;
@@ -84,6 +89,84 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
         videoAnalysisExecutor.execute(() -> videoAnalysisProcessor.process(task.getTaskId(), req));
 
         return simpleTaskRes(task);
+    }
+
+    @Override
+    public VideoAnalyzeRes analyzeAndSave(VideoAnalyzeReq req) {
+        String analysisType = normalizeAnalysisType(req.getAnalysisType());
+        String businessId = normalizeBusinessId(req.getCallId(), req.getContentId());
+        req.setCallId(businessId);
+        req.setContentId(businessId);
+        req.setAnalysisType(analysisType);
+
+        Map<String, Object> input = buildPolicyInput(req);
+        Long userId = req.getUserId();
+        log.info("Starting policy video analysis, policyId: {}, callId: {}, contentId: {}",
+                req.getPolicyId(), businessId, businessId);
+
+        VideoAnalysisTaskEntity existing = videoAnalysisTaskMapper.selectActiveByContentId(businessId);
+        if (existing != null) {
+            log.info("Reused active policy task, taskId: {}, callId: {}", existing.getTaskId(), businessId);
+            return simpleTaskRes(existing);
+        }
+
+        VideoAnalysisTaskEntity task = new VideoAnalysisTaskEntity();
+        task.setTaskId(UUID.randomUUID().toString().replace("-", ""));
+        task.setCallId(businessId);
+        task.setContentId(businessId);
+        task.setVideoUrl(req.getVideoUrl());
+        task.setCoverUrl(req.getCoverUrl());
+        task.setAnalysisType(analysisType);
+        task.setUserId(userId);
+        task.setStatus(TaskStatus.PENDING.getCode());
+        task.setRetryCount(0);
+        task.setPromptModules(joinPromptModules(req.getPromptModules()));
+
+        try {
+            videoAnalysisTaskMapper.insert(task);
+        } catch (DataIntegrityViolationException ex) {
+            VideoAnalysisTaskEntity conflict = videoAnalysisTaskMapper.selectActiveByContentId(businessId);
+            if (conflict != null) {
+                log.info("Duplicate policy submit blocked, reused taskId: {}", conflict.getTaskId());
+                return simpleTaskRes(conflict);
+            }
+            throw ex;
+        }
+
+        task.setStatus(TaskStatus.PROCESSING.getCode());
+        videoAnalysisTaskMapper.updateById(task);
+
+        try {
+            PolicyExecuteResult policyResult = policyExecutionEngine.execute(req.getPolicyId(), input);
+            task.setTraceId(policyResult.getExecutionId());
+
+            Map<String, Object> finalResult = extractFinalResult(policyResult);
+            String resultJson = writeJson(finalResult);
+            ParsedResult parsed = parseResultJson(resultJson);
+
+            task.setResultJson(resultJson);
+            task.setModerationResult(readString(finalResult.get("moderationResult")));
+            if (task.getModerationResult() == null || task.getModerationResult().isBlank()) {
+                task.setModerationResult(deriveModerationResult(parsed.violations));
+            }
+            task.setOverallConfidence(readDouble(finalResult.get("overallConfidence")));
+            if (task.getOverallConfidence() == null) {
+                task.setOverallConfidence(deriveOverallConfidence(parsed.violations));
+            }
+            task.setStatus(policyResult.isSuccess() ? TaskStatus.COMPLETED.getCode() : TaskStatus.FAILED.getCode());
+            task.setCompletedAt(java.time.OffsetDateTime.now());
+            task.setErrorMessage(policyResult.getErrorMessage());
+            videoAnalysisTaskMapper.updateById(task);
+
+            return buildPolicyAnalyzeRes(task, parsed, resultJson);
+        } catch (Exception e) {
+            log.error("Policy video analysis failed, policyId: {}, callId: {}", req.getPolicyId(), businessId, e);
+            task.setStatus(TaskStatus.FAILED.getCode());
+            task.setErrorMessage(e.getMessage());
+            task.setCompletedAt(java.time.OffsetDateTime.now());
+            videoAnalysisTaskMapper.updateById(task);
+            return buildPolicyFailureRes(task, e.getMessage());
+        }
     }
 
     @Override
@@ -191,6 +274,141 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
         return analysisType.trim().toUpperCase();
     }
 
+    private String deriveModerationResult(List<ViolationDTO> violations) {
+        List<ViolationDTO> detected = violations.stream().filter(v -> Boolean.TRUE.equals(v.getDetected())).toList();
+        if (detected.isEmpty()) {
+            return ModerationResultEnum.NOT_HIT.getCode();
+        }
+        boolean high = detected.stream().anyMatch(v -> v.getConfidence() != null && v.getConfidence() >= 0.9);
+        if (high || detected.size() >= 2) {
+            return ModerationResultEnum.HIT.getCode();
+        }
+        return ModerationResultEnum.SUSPECTED.getCode();
+    }
+
+    private Double deriveOverallConfidence(List<ViolationDTO> violations) {
+        double avg = violations.stream()
+                .filter(v -> Boolean.TRUE.equals(v.getDetected()) && v.getConfidence() != null)
+                .mapToDouble(ViolationDTO::getConfidence)
+                .average()
+                .orElse(1.0);
+        return Math.max(0.0, Math.min(1.0, avg));
+    }
+
+    private Map<String, Object> buildPolicyInput(VideoAnalyzeReq req) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        if (req.getPolicyInput() != null) {
+            input.putAll(req.getPolicyInput());
+        }
+        input.put("callId", req.getCallId());
+        input.put("contentId", req.getContentId());
+        input.put("videoUrl", req.getVideoUrl());
+        input.put("coverUrl", req.getCoverUrl());
+        input.put("analysisType", req.getAnalysisType());
+        input.put("userId", req.getUserId());
+        return input;
+    }
+
+    private VideoAnalyzeRes buildPolicyAnalyzeRes(VideoAnalysisTaskEntity task, ParsedResult parsed, String resultJson) {
+        return VideoAnalyzeRes.builder()
+                .taskId(task.getTaskId())
+                .callId(task.getCallId())
+                .contentId(task.getContentId())
+                .videoUrl(task.getVideoUrl())
+                .coverUrl(task.getCoverUrl())
+                .status(task.getStatus())
+                .analysisType(task.getAnalysisType())
+                .userId(task.getUserId())
+                .moderationResult(task.getModerationResult())
+                .violations(parsed.violations)
+                .summary(parsed.summary)
+                .overallConfidence(task.getOverallConfidence())
+                .promptModules(task.getPromptModules())
+                .createdAt(task.getCreatedAt())
+                .completedAt(task.getCompletedAt())
+                .errorMessage(task.getErrorMessage())
+                .resultJson(resultJson)
+                .build();
+    }
+
+    private VideoAnalyzeRes buildPolicyFailureRes(VideoAnalysisTaskEntity task, String errorMessage) {
+        return VideoAnalyzeRes.builder()
+                .taskId(task.getTaskId())
+                .callId(task.getCallId())
+                .contentId(task.getContentId())
+                .videoUrl(task.getVideoUrl())
+                .coverUrl(task.getCoverUrl())
+                .status(task.getStatus())
+                .analysisType(task.getAnalysisType())
+                .userId(task.getUserId())
+                .moderationResult(task.getModerationResult())
+                .overallConfidence(task.getOverallConfidence())
+                .promptModules(task.getPromptModules())
+                .createdAt(task.getCreatedAt())
+                .completedAt(task.getCompletedAt())
+                .errorMessage(errorMessage)
+                .build();
+    }
+
+    private Map<String, Object> extractFinalResult(PolicyExecuteResult policyResult) {
+        if (policyResult == null || policyResult.getState() == null || policyResult.getState().getData() == null) {
+            return new LinkedHashMap<>();
+        }
+        Map<String, Object> data = policyResult.getState().getData();
+        Object finalResult = data.get("finalResult");
+        if (finalResult instanceof Map<?, ?> map) {
+            return normalizeMap(map);
+        }
+        Object output = data.get(OUTPUT_SKILL_ID);
+        if (output instanceof Map<?, ?> map) {
+            return normalizeMap(map);
+        }
+        return new LinkedHashMap<>();
+    }
+
+    private Map<String, Object> normalizeMap(Map<?, ?> source) {
+        Map<String, Object> target = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry.getKey() != null) {
+                target.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return target;
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value == null ? new LinkedHashMap<>() : value);
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
+    private String readString(Object value) {
+        return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private Double readDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Double.parseDouble(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String joinPromptModules(List<String> promptModules) {
+        if (promptModules == null || promptModules.isEmpty()) {
+            return null;
+        }
+        return String.join(",", promptModules.stream().map(String::trim).filter(s -> !s.isBlank()).toList());
+    }
+
     private String normalizeBusinessId(String callId, String contentId) {
         String cId = contentId == null ? null : contentId.trim();
         String call = callId == null ? null : callId.trim();
@@ -202,6 +420,8 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
         }
         return call;
     }
+
+    private static final String OUTPUT_SKILL_ID = "output_1774514701619";
 
     private VideoAnalyzeRes simpleTaskRes(VideoAnalysisTaskEntity task) {
         return VideoAnalyzeRes.builder()

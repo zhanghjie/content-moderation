@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Content Moderation Server 后端启动脚本
-# 项目路径：/Users/zhanghaojie/IdeaProjects/content-moderation/content-moderation-server
+# 项目路径：脚本所在目录，支持相对调用
 
 set -e
 
@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # 项目配置
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="content-moderation-server"
 PROJECT_DIR="$SCRIPT_DIR"
 PID_FILE="$PROJECT_DIR/.server.pid"
@@ -38,6 +38,18 @@ print_warning() {
 
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 函数：逐个终止 PID
+terminate_pids() {
+    local pid_list="$1"
+    local signal="${2:-TERM}"
+
+    for pid in $pid_list; do
+        if [ -n "$pid" ] && ps -p "$pid" > /dev/null 2>&1; then
+            kill -"$signal" "$pid" 2>/dev/null || true
+        fi
+    done
 }
 
 # 函数：检查是否已运行
@@ -90,11 +102,11 @@ stop() {
         PID=$(cat "$PID_FILE")
         if ps -p "$PID" > /dev/null 2>&1; then
             print_info "正在停止服务 (PID: $PID)..."
-            kill "$PID"
+            terminate_pids "$PID" TERM
             sleep 2
             if ps -p "$PID" > /dev/null 2>&1; then
                 print_warning "服务未响应，强制终止..."
-                kill -9 "$PID"
+                terminate_pids "$PID" KILL
             fi
             rm -f "$PID_FILE"
             print_info "服务已停止"
@@ -104,13 +116,13 @@ stop() {
         fi
     else
         # 尝试通过进程名查找
-        PID=$(ps aux | grep "$PROJECT_NAME" | grep -v grep | awk '{print $2}')
-        if [ -n "$PID" ]; then
-            print_info "正在停止服务 (PID: $PID)..."
-            kill "$PID"
+        PID_LIST=$(ps aux | grep "$PROJECT_NAME" | grep -v grep | awk '{print $2}')
+        if [ -n "$PID_LIST" ]; then
+            print_info "正在停止服务 (PID: $(echo "$PID_LIST" | tr '\n' ' '))..."
+            terminate_pids "$PID_LIST" TERM
             sleep 2
-            if ps -p "$PID" > /dev/null 2>&1; then
-                kill -9 "$PID"
+            if [ -n "$(for pid in $PID_LIST; do if ps -p "$pid" > /dev/null 2>&1; then echo "$pid"; fi; done)" ]; then
+                terminate_pids "$PID_LIST" KILL
             fi
             print_info "服务已停止"
         else

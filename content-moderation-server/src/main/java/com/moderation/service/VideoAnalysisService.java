@@ -13,7 +13,12 @@ public interface VideoAnalysisService {
      * 发起视频分析
      */
     VideoAnalyzeRes analyze(VideoAnalyzeReq req);
-    
+
+    /**
+     * 基于 Policy 执行视频分析并返回标准化结果
+     */
+    VideoAnalyzeRes analyzeAndSave(VideoAnalyzeReq req);
+
     /**
      * 查询分析结果
      */
