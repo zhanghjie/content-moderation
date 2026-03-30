@@ -65,6 +65,16 @@ public class VideoAnalyzeRes {
      * LLM 返回的原始 JSON（用于调试/复现）
      */
     private String resultJson;
+
+    /**
+     * 使用的 Policy ID
+     */
+    private String policyId;
+
+    /**
+     * 使用的 Policy 名称（从 PolicyRegistry 实时查询）
+     */
+    private String policyName;
     
     @Data
     public static class VideoSummaryDTO {

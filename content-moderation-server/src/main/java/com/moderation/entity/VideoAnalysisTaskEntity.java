@@ -65,6 +65,11 @@ public class VideoAnalysisTaskEntity {
      * 总体置信度（0-1）
      */
     private Double overallConfidence;
+
+    /**
+     * 使用的 Policy ID
+     */
+    private String policyId;
     
     @TableField(fill = FieldFill.INSERT)
     private OffsetDateTime createdAt;

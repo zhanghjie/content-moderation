@@ -18,6 +18,8 @@ export interface VideoAnalysisTask {
   summary?: VideoSummary
   analysisDuration?: string
   createdAt?: string
+  policyId?: string
+  policyName?: string
 }
 
 // 违规信息

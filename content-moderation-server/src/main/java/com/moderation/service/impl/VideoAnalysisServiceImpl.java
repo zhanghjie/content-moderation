@@ -14,6 +14,7 @@ import com.moderation.model.res.VideoAnalyzeRes.VideoSummaryDTO;
 import com.moderation.service.VideoAnalysisService;
 import com.moderation.skillos.engine.PolicyExecuteResult;
 import com.moderation.skillos.engine.PolicyExecutionEngine;
+import com.moderation.skillos.registry.PolicyRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
     private final ObjectMapper objectMapper;
     private final VideoAnalysisProcessor videoAnalysisProcessor;
     private final PolicyExecutionEngine policyExecutionEngine;
+    private final PolicyRegistry policyRegistry;
 
     @Qualifier("videoAnalysisExecutor")
     private final Executor videoAnalysisExecutor;
@@ -121,6 +123,7 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
         task.setStatus(TaskStatus.PENDING.getCode());
         task.setRetryCount(0);
         task.setPromptModules(joinPromptModules(req.getPromptModules()));
+        task.setPolicyId(req.getPolicyId());
 
         try {
             videoAnalysisTaskMapper.insert(task);
@@ -196,6 +199,7 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
                 .completedAt(task.getCompletedAt())
                 .errorMessage(task.getErrorMessage())
                 .resultJson(task.getResultJson())
+                .policyId(task.getPolicyId())
                 .moderationResult(task.getModerationResult() != null
                         ? task.getModerationResult()
                         : (isCompleted(task.getStatus())
@@ -206,8 +210,21 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
             ParsedResult parsed = parseResultJson(task.getResultJson());
             builder.violations(parsed.violations).summary(parsed.summary);
         }
-
-        return builder.build();
+        
+        VideoAnalyzeRes result = builder.build();
+        
+        // 填充 Policy 名称
+        if (result.getPolicyId() != null && !result.getPolicyId().isBlank()) {
+            try {
+                com.moderation.skillos.model.PolicyDefinition policyDef = policyRegistry.get(result.getPolicyId());
+                result.setPolicyName(policyDef.getName());
+            } catch (Exception e) {
+                log.debug("Failed to get policy name, policyId: {}", result.getPolicyId());
+                result.setPolicyName("未知策略");
+            }
+        }
+        
+        return result;
     }
 
     @Override
@@ -231,6 +248,9 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
         List<VideoAnalyzeRes> list = pageResult.getRecords().stream()
                 .map(this::toListItemSafely)
                 .toList();
+        
+        // 批量查询 Policy 名称并填充
+        enrichPolicyNames(list);
 
         return TaskListRes.builder()
                 .total(pageResult.getTotal())
@@ -238,6 +258,45 @@ public class VideoAnalysisServiceImpl implements VideoAnalysisService {
                 .pageSize(ps)
                 .list(list)
                 .build();
+    }
+
+    /**
+     * 批量填充 Policy 名称
+     */
+    private void enrichPolicyNames(List<VideoAnalyzeRes> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return;
+        }
+        
+        // 收集所有 policyId
+        List<String> policyIds = tasks.stream()
+                .map(VideoAnalyzeRes::getPolicyId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+        
+        if (policyIds.isEmpty()) {
+            return;
+        }
+        
+        // 批量查询 Policy 名称
+        Map<String, String> policyNameMap = new LinkedHashMap<>();
+        for (String policyId : policyIds) {
+            try {
+                com.moderation.skillos.model.PolicyDefinition policyDef = policyRegistry.get(policyId);
+                policyNameMap.put(policyId, policyDef.getName());
+            } catch (Exception e) {
+                log.debug("Failed to get policy name, policyId: {}", policyId);
+                policyNameMap.put(policyId, "未知策略");
+            }
+        }
+        
+        // 填充到任务列表
+        for (VideoAnalyzeRes task : tasks) {
+            if (task.getPolicyId() != null && !task.getPolicyId().isBlank()) {
+                task.setPolicyName(policyNameMap.get(task.getPolicyId()));
+            }
+        }
     }
 
     @Override

@@ -63,7 +63,8 @@ class PolicyExecutionEngineTest {
                 Mockito.mock(PolicyExecutionMapper.class),
                 Mockito.mock(PolicyExecutionStepMapper.class),
                 Mockito.mock(PolicyExecutionFeedbackMapper.class),
-                new ObjectMapper()
+                new ObjectMapper(),
+                skillRegistry
         );
     }
 
