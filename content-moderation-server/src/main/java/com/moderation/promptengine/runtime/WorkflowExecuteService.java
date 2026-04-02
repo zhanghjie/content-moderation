@@ -1,5 +1,6 @@
 package com.moderation.promptengine.runtime;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moderation.model.req.WorkflowExecuteReq;
 import com.moderation.model.res.PromptDslValidateRes;
 import com.moderation.model.res.WorkflowExecuteRes;
@@ -27,6 +28,7 @@ public class WorkflowExecuteService {
     private final WorkflowValueResolver workflowValueResolver;
     private final ScriptNodeExecutor scriptNodeExecutor;
     private final PromptEngineLlmService promptEngineLlmService;
+    private final ObjectMapper objectMapper;
 
     public WorkflowExecuteRes execute(WorkflowExecuteReq req) {
         long start = System.currentTimeMillis();
@@ -237,9 +239,28 @@ public class WorkflowExecuteService {
         if (template == null || template.isBlank()) return "";
         String out = template;
         for (Map.Entry<String, Object> entry : localInput.entrySet()) {
-            out = out.replace("{{" + entry.getKey() + "}}", entry.getValue() == null ? "" : String.valueOf(entry.getValue()));
+            String valueText = stringify(entry.getValue());
+            out = out.replace("{{" + entry.getKey() + "}}", valueText);
+            out = out.replace("#{" + entry.getKey() + "}", valueText);
         }
         Object resolved = workflowValueResolver.resolveTemplateValue(out, context);
-        return resolved == null ? "" : String.valueOf(resolved);
+        return stringify(resolved);
+    }
+
+    private String stringify(Object value) {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof String str) {
+            return str;
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return String.valueOf(value);
+        }
     }
 }

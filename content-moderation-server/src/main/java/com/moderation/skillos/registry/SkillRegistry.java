@@ -523,18 +523,38 @@ public class SkillRegistry {
     }
 
     private String resolveExecutorBean(SkillDefinition skillDefinition) {
-        if (!isBlank(skillDefinition.getExecutorBean())) {
-            return skillDefinition.getExecutorBean().trim();
-        }
-        Object modeValue = skillDefinition.getExecutionConfig() == null ? null : skillDefinition.getExecutionConfig().get("execution_mode");
-        if ("LLM".equalsIgnoreCase(String.valueOf(modeValue))) {
+        String configured = skillDefinition.getExecutorBean() == null ? "" : skillDefinition.getExecutorBean().trim();
+        String normalizedMode = resolveExecutionMode(skillDefinition.getExecutionConfig());
+        if ("LLM".equals(normalizedMode)) {
             return "llmSkillExecutor";
+        }
+        if ("ASR".equals(normalizedMode)) {
+            return "asrSkillExecutor";
+        }
+        if (isPythonMode(normalizedMode)) {
+            return pythonExecutionEnabled() ? "pythonSkillExecutor" : "llmSkillExecutor";
+        }
+        if (!isBlank(configured)) {
+            if ("pythonSkillExecutor".equals(configured)) {
+                return pythonExecutionEnabled() ? "pythonSkillExecutor" : "llmSkillExecutor";
+            }
+            if ("genericSkillExecutor".equals(configured) && hasLlmHints(skillDefinition)) {
+                return "llmSkillExecutor";
+            }
+            return configured;
         }
         SkillDefinition existed = findExistingSkill(skillDefinition.getSkillId());
         if (existed != null && !isBlank(existed.getExecutorBean())) {
-            return existed.getExecutorBean();
+            String existedBean = existed.getExecutorBean().trim();
+            if ("pythonSkillExecutor".equals(existedBean)) {
+                return pythonExecutionEnabled() ? "pythonSkillExecutor" : "llmSkillExecutor";
+            }
+            if ("genericSkillExecutor".equals(existedBean) && hasLlmHints(skillDefinition)) {
+                return "llmSkillExecutor";
+            }
+            return existedBean;
         }
-        return switch (skillDefinition.getSkillId()) {
+        String builtIn = switch (skillDefinition.getSkillId()) {
             case "role_detect" -> "roleDetectSkillExecutor";
             case "video_parse" -> "videoParseSkillExecutor";
             case "asr" -> "asrSkillExecutor";
@@ -542,8 +562,48 @@ public class SkillRegistry {
             case "violation_call_in_bed" -> "violationCallInBedSkillExecutor";
             case "violation_black_screen" -> "violationBlackScreenSkillExecutor";
             case "violation_aggregate" -> "violationAggregateSkillExecutor";
-            default -> "genericSkillExecutor";
+            default -> "";
         };
+        if (!builtIn.isBlank()) {
+            return builtIn;
+        }
+        if (hasLlmHints(skillDefinition)) {
+            return "llmSkillExecutor";
+        }
+        return "genericSkillExecutor";
+    }
+
+    private boolean hasLlmHints(SkillDefinition definition) {
+        Map<String, Object> executionConfig = definition.getExecutionConfig() == null ? Map.of() : definition.getExecutionConfig();
+        Map<String, Object> scriptConfig = definition.getScriptConfig() == null ? Map.of() : definition.getScriptConfig();
+        String llmConfigCode = String.valueOf(executionConfig.getOrDefault("llm_config_code", "")).trim();
+        String llmModel = String.valueOf(executionConfig.getOrDefault("llm_model", "")).trim();
+        String prompt = String.valueOf(scriptConfig.getOrDefault("prompt", "")).trim();
+        String language = String.valueOf(scriptConfig.getOrDefault("language", "")).trim();
+        return !llmConfigCode.isBlank()
+                || !llmModel.isBlank()
+                || !prompt.isBlank()
+                || "javascript".equalsIgnoreCase(language)
+                || "python".equalsIgnoreCase(language);
+    }
+
+    private String resolveExecutionMode(Map<String, Object> executionConfig) {
+        Object modeValue = executionConfig == null ? null : executionConfig.get("execution_mode");
+        if (modeValue == null && executionConfig != null) {
+            modeValue = executionConfig.get("executionMode");
+        }
+        if (modeValue == null && executionConfig != null) {
+            modeValue = executionConfig.get("mode");
+        }
+        return String.valueOf(modeValue == null ? "" : modeValue).trim().toUpperCase();
+    }
+
+    private boolean isPythonMode(String mode) {
+        return "PYTHON".equals(mode) || "PY".equals(mode) || "PY_SCRIPT".equals(mode);
+    }
+
+    private boolean pythonExecutionEnabled() {
+        return false;
     }
 
     private String normalizeType(String type) {

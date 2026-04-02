@@ -96,6 +96,29 @@ CREATE INDEX IF NOT EXISTS idx_health_score_user_id ON health_score_record(user_
 CREATE INDEX IF NOT EXISTS idx_health_score_created_at ON health_score_record(created_at);
 CREATE INDEX IF NOT EXISTS idx_health_score_idempotency ON health_score_record(idempotency_key);
 
+-- 6. Skill Definition 表
+CREATE TABLE IF NOT EXISTS skill_definition (
+    id BIGSERIAL PRIMARY KEY,
+    skill_id VARCHAR(128) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(32) NOT NULL,
+    description TEXT NOT NULL,
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    input_schema_json TEXT NOT NULL DEFAULT '{}',
+    output_schema_json TEXT NOT NULL DEFAULT '{}',
+    state_mapping_json TEXT NOT NULL DEFAULT '{}',
+    execution_config_json TEXT NOT NULL DEFAULT '{}',
+    script_config_json TEXT NOT NULL DEFAULT '{}',
+    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    timeout_ms INTEGER NOT NULL DEFAULT 3000,
+    version VARCHAR(32) NOT NULL DEFAULT 'v1',
+    executor_bean VARCHAR(128),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_definition_id ON skill_definition(id);
+
 -- 插入测试数据（可选）
 -- INSERT INTO video_analysis_task (task_id, call_id, content_id, video_url, status) 
 -- VALUES ('test-task-001', 'test-call-001', 'test-content-001', 'https://example.com/test.mp4', 'PENDING');

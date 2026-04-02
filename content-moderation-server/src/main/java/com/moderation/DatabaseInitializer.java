@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -96,6 +97,7 @@ public class DatabaseInitializer implements CommandLineRunner {
             
             // 验证表是否创建成功
             verifyTables();
+            verifyCriticalColumns();
             
         } catch (IOException e) {
             log.error("Failed to read init script: {}", e.getMessage());
@@ -133,6 +135,38 @@ public class DatabaseInitializer implements CommandLineRunner {
             } catch (Exception e) {
                 log.error("Table '{}' verification failed: {}", tableName, e.getMessage());
             }
+        }
+    }
+
+    /**
+     * 严格校验关键字段，防止代码已发布但迁移未生效导致运行期 SQL 报错
+     */
+    private void verifyCriticalColumns() {
+        verifyColumnOrThrow("video_analysis_task", "draft_payload_json");
+    }
+
+    private void verifyColumnOrThrow(String tableName, String columnName) {
+        String sql = """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = ?
+                  AND column_name = ?
+                LIMIT 1
+                """;
+        try {
+            Integer exists = jdbcTemplate.query(connection -> {
+                var ps = connection.prepareStatement(sql);
+                ps.setString(1, tableName);
+                ps.setString(2, columnName);
+                return ps;
+            }, (ResultSet rs) -> rs.next() ? 1 : 0);
+
+            if (exists == null || exists != 1) {
+                throw new IllegalStateException("Missing required column: " + tableName + "." + columnName);
+            }
+            log.info("Verified column '{}.{}' exists", tableName, columnName);
+        } catch (Exception e) {
+            throw new IllegalStateException("Critical schema verification failed for " + tableName + "." + columnName, e);
         }
     }
 }

@@ -19,12 +19,52 @@ PID_FILE="$PROJECT_DIR/.server.pid"
 LOG_FILE="$PROJECT_DIR/logs/server.log"
 
 # JDK 配置
-if [ -z "$JAVA_HOME" ] && command -v java >/dev/null 2>&1; then
-    JAVA_BIN_DIR="$(dirname "$(readlink -f "$(command -v java)")")"
-    export JAVA_HOME="$(cd "$JAVA_BIN_DIR/.." && pwd)"
+detect_java_home() {
+    if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+        echo "$JAVA_HOME"
+        return 0
+    fi
+
+    if command -v /usr/libexec/java_home >/dev/null 2>&1; then
+        local mac_java_home
+        mac_java_home=$(/usr/libexec/java_home 2>/dev/null || true)
+        if [ -n "$mac_java_home" ] && [ -x "$mac_java_home/bin/java" ]; then
+            echo "$mac_java_home"
+            return 0
+        fi
+    fi
+
+    for candidate in \
+        /opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home \
+        /usr/local/opt/openjdk/libexec/openjdk.jdk/Contents/Home \
+        /Library/Java/JavaVirtualMachines/*.jdk/Contents/Home; do
+        if [ -d "$candidate" ] && [ -x "$candidate/bin/java" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    if command -v java >/dev/null 2>&1; then
+        local java_bin java_dir
+        java_bin="$(command -v java)"
+        java_dir="$(cd "$(dirname "$java_bin")/.." && pwd)"
+        if [ -x "$java_dir/bin/java" ]; then
+            echo "$java_dir"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+if [ -z "$JAVA_HOME" ] || [ ! -x "$JAVA_HOME/bin/java" ]; then
+    JAVA_HOME="$(detect_java_home || true)"
+    export JAVA_HOME
 fi
-if [ -n "$JAVA_HOME" ]; then
+if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     export PATH="$JAVA_HOME/bin:$PATH"
+else
+    print_warning "未能自动检测到可用的 JAVA_HOME，后端可能无法启动"
 fi
 
 # 函数：打印信息
@@ -83,12 +123,45 @@ start() {
         set +a
     fi
     
-    # 后台运行
+    # 后台运行 (使用 nohup 确保进程独立运行)
+    cd "$PROJECT_DIR"
     nohup mvn spring-boot:run -Dspring-boot.run.profiles="$profile" > "$LOG_FILE" 2>&1 &
     PID=$!
     
     # 保存 PID
     echo "$PID" > "$PID_FILE"
+    
+    # 等待服务启动 (最多等待 120 秒)
+    print_info "等待服务启动 (最多 120 秒)..."
+    local wait_count=0
+    while [ $wait_count -lt 120 ]; do
+        # 检查健康端点
+        if curl -s http://localhost:9891/actuator/health 2>/dev/null | grep -q "UP"; then
+            print_info "服务启动成功"
+            break
+        fi
+        # 检查进程是否还在运行
+        if ! ps -p "$PID" > /dev/null 2>&1; then
+            print_error "服务进程已退出，请查看日志：$LOG_FILE"
+            tail -30 "$LOG_FILE" 2>/dev/null
+            break
+        fi
+        sleep 2
+        wait_count=$((wait_count + 1))
+        # 每 20 秒打印一次进度
+        if [ $((wait_count % 10)) -eq 0 ]; then
+            echo -n "."
+        fi
+    done
+    echo ""
+    
+    # 最终检查
+    if curl -s http://localhost:9891/actuator/health 2>/dev/null | grep -q "UP"; then
+        print_info "✓ 服务已就绪"
+    else
+        print_warning "服务可能还在启动中，请查看日志"
+        print_info "使用以下命令查看日志：tail -f $LOG_FILE"
+    fi
     
     print_info "服务已启动 (PID: $PID)"
     print_info "日志文件：$LOG_FILE"

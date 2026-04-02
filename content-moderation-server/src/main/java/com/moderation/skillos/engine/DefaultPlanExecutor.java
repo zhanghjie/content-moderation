@@ -1,6 +1,7 @@
 package com.moderation.skillos.engine;
 
 import com.moderation.skillos.executor.SkillExecutor;
+import com.moderation.service.LlmProfileService;
 import com.moderation.skillos.model.ExecutionPlan;
 import com.moderation.skillos.model.ExecutionPlanStep;
 import com.moderation.skillos.model.ExecutionState;
@@ -27,6 +28,7 @@ import java.util.UUID;
 public class DefaultPlanExecutor implements PlanExecutor {
     private final SkillRegistry skillRegistry;
     private final ApplicationContext applicationContext;
+    private final LlmProfileService llmProfileService;
 
     @Override
     public PlanExecuteResult execute(ExecutionPlan plan, PolicyDefinition policy, Map<String, Object> input) {
@@ -268,11 +270,95 @@ public class DefaultPlanExecutor implements PlanExecutor {
     }
 
     private String resolveExecutorBean(SkillDefinition skill) {
-        Map<String, Object> executionConfig = skill.getExecutionConfig();
-        Object modeValue = executionConfig == null ? null : executionConfig.get("execution_mode");
-        if ("LLM".equalsIgnoreCase(String.valueOf(modeValue))) {
-            return "llmSkillExecutor";
+        String normalizedMode = resolveExecutionMode(skill.getExecutionConfig());
+        if ("LLM".equals(normalizedMode)) {
+            return resolveLlmExecutorBean(skill);
         }
-        return skill.getExecutorBean();
+        if ("ASR".equals(normalizedMode)) {
+            return "asrSkillExecutor";
+        }
+        if (isPythonMode(normalizedMode)) {
+            return pythonExecutionEnabled() ? "pythonSkillExecutor" : resolveLlmExecutorBean(skill);
+        }
+        String configured = skill.getExecutorBean() == null ? "" : skill.getExecutorBean().trim();
+        if ("pythonSkillExecutor".equals(configured)) {
+            return pythonExecutionEnabled() ? "pythonSkillExecutor" : resolveLlmExecutorBean(skill);
+        }
+        if ("genericSkillExecutor".equals(configured) && hasLlmHints(skill)) {
+            return resolveLlmExecutorBean(skill);
+        }
+        if (!configured.isBlank()) {
+            if ("llmSkillExecutor".equals(configured)) {
+                return resolveLlmExecutorBean(skill);
+            }
+            return configured;
+        }
+        if (hasLlmHints(skill)) {
+            return resolveLlmExecutorBean(skill);
+        }
+        return "genericSkillExecutor";
+    }
+
+    private String resolveLlmExecutorBean(SkillDefinition skill) {
+        return isGeminiSkill(skill) ? "geminiSkillExecutor" : "llmSkillExecutor";
+    }
+
+    private boolean isGeminiSkill(SkillDefinition skill) {
+        if (skill == null) {
+            return false;
+        }
+        Map<String, Object> executionConfig = skill.getExecutionConfig() == null ? Map.of() : skill.getExecutionConfig();
+        Object providerHint = executionConfig.get("llm_provider");
+        if (providerHint == null) {
+            providerHint = executionConfig.get("provider");
+        }
+        String providerValue = String.valueOf(providerHint == null ? "" : providerHint).trim();
+        if ("gemini".equalsIgnoreCase(providerValue)) {
+            return true;
+        }
+        String llmConfigCode = String.valueOf(executionConfig.getOrDefault("llm_config_code", "")).trim();
+        if (!llmConfigCode.isBlank()) {
+            return llmProfileService.findByCode(llmConfigCode)
+                    .map(LlmProfileService.LlmRuntimeProfile::provider)
+                    .map(provider -> "gemini".equalsIgnoreCase(provider == null ? "" : provider.trim()))
+                    .orElse(false);
+        }
+        return llmProfileService.findDefaultEnabled()
+                .map(LlmProfileService.LlmRuntimeProfile::provider)
+                .map(provider -> "gemini".equalsIgnoreCase(provider == null ? "" : provider.trim()))
+                .orElse(false);
+    }
+
+    private boolean hasLlmHints(SkillDefinition skill) {
+        Map<String, Object> executionConfig = skill.getExecutionConfig() == null ? Map.of() : skill.getExecutionConfig();
+        Map<String, Object> scriptConfig = skill.getScriptConfig() == null ? Map.of() : skill.getScriptConfig();
+        String llmConfigCode = String.valueOf(executionConfig.getOrDefault("llm_config_code", "")).trim();
+        String llmModel = String.valueOf(executionConfig.getOrDefault("llm_model", "")).trim();
+        String prompt = String.valueOf(scriptConfig.getOrDefault("prompt", "")).trim();
+        String language = String.valueOf(scriptConfig.getOrDefault("language", "")).trim();
+        return !llmConfigCode.isBlank()
+                || !llmModel.isBlank()
+                || !prompt.isBlank()
+                || "javascript".equalsIgnoreCase(language)
+                || "python".equalsIgnoreCase(language);
+    }
+
+    private String resolveExecutionMode(Map<String, Object> executionConfig) {
+        Object modeValue = executionConfig == null ? null : executionConfig.get("execution_mode");
+        if (modeValue == null && executionConfig != null) {
+            modeValue = executionConfig.get("executionMode");
+        }
+        if (modeValue == null && executionConfig != null) {
+            modeValue = executionConfig.get("mode");
+        }
+        return String.valueOf(modeValue == null ? "" : modeValue).trim().toUpperCase();
+    }
+
+    private boolean isPythonMode(String mode) {
+        return "PYTHON".equals(mode) || "PY".equals(mode) || "PY_SCRIPT".equals(mode);
+    }
+
+    private boolean pythonExecutionEnabled() {
+        return false;
     }
 }

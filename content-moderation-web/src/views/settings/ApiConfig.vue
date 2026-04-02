@@ -100,13 +100,13 @@
       </el-col>
     </el-row>
 
-    <el-dialog v-model="editorVisible" :title="isEdit ? '编辑模型配置' : '新增模型配置'" width="720px">
+    <el-dialog v-model="editorVisible" :title="isEdit ? '编辑模型配置' : '新增模型配置'" width="720px" destroy-on-close>
       <el-form :model="editor" label-width="110px">
         <el-form-item label="配置编码">
-          <el-input v-model="editor.configCode" :disabled="isEdit" placeholder="如 GPT_4O_MAIN" />
+          <el-input v-model="editor.configCode" :disabled="isEdit" placeholder="如 GPT_4O_MAIN" autocomplete="off" />
         </el-form-item>
         <el-form-item label="显示名称">
-          <el-input v-model="editor.displayName" placeholder="如 OpenAI 主模型" />
+          <el-input v-model="editor.displayName" placeholder="如 OpenAI 主模型" autocomplete="off" />
         </el-form-item>
         <el-form-item label="Provider">
           <el-select v-model="editor.provider" class="full-width">
@@ -114,16 +114,17 @@
           </el-select>
         </el-form-item>
         <el-form-item label="API Endpoint">
-          <el-input v-model="editor.endpoint" placeholder="https://xxx" />
+          <el-input v-model="editor.endpoint" placeholder="https://xxx" autocomplete="off" />
         </el-form-item>
         <el-form-item label="Model">
-          <el-input v-model="editor.model" placeholder="模型名称" />
+          <el-input v-model="editor.model" placeholder="模型名称" autocomplete="off" />
         </el-form-item>
         <el-form-item label="API Key">
           <el-input
             v-model="editor.apiKey"
             type="password"
             show-password
+            autocomplete="new-password"
             :placeholder="isEdit && editor.apiKeyConfigured ? '已保存密钥，留空则不修改' : '请输入 API Key'"
           />
         </el-form-item>
@@ -149,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { settingsApi, type LlmProfile, type LlmProfilePayload } from '@/api/settings'
 
@@ -164,10 +165,14 @@ const profiles = ref<LlmProfile[]>([])
 const providerOptions = [
   { label: 'BytePlus', value: 'byteplus' },
   { label: 'OpenAI', value: 'openai' },
+  { label: 'Gemini', value: 'gemini' },
   { label: 'Anthropic', value: 'anthropic' },
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'Custom', value: 'custom' }
 ]
+const providerDefaultEndpointMap: Record<string, string> = {
+  gemini: 'https://generativelanguage.googleapis.com'
+}
 const providerLabelMap = providerOptions.reduce<Record<string, string>>((acc, item) => {
   acc[item.value] = item.label
   return acc
@@ -180,7 +185,7 @@ const dunConfig = reactive({
 const editor = reactive<LlmProfilePayload & { apiKeyConfigured?: boolean }>({
   configCode: '',
   displayName: '',
-  provider: 'byteplus',
+  provider: '',
   endpoint: '',
   model: '',
   apiKey: '',
@@ -194,9 +199,15 @@ const editor = reactive<LlmProfilePayload & { apiKeyConfigured?: boolean }>({
 const normalizeProvider = (provider?: string) => {
   const value = provider?.trim().toLowerCase() || ''
   if (!value) return 'byteplus'
+  if (value === 'gemini' || value === 'google' || value === 'google-gemini') return 'gemini'
   if (value === 'deepseek' || value === 'deepseek-ai' || value === 'deepSeek'.toLowerCase()) return 'deepseek'
   if (providerLabelMap[value]) return value
   return 'custom'
+}
+
+const defaultEndpointForProvider = (provider?: string) => {
+  const normalized = normalizeProvider(provider)
+  return providerDefaultEndpointMap[normalized] || ''
 }
 
 const normalizeProfiles = (list: LlmProfile[]) =>
@@ -206,32 +217,16 @@ const normalizeProfiles = (list: LlmProfile[]) =>
   }))
 
 const buildCreateEditor = (): LlmProfilePayload & { apiKeyConfigured?: boolean } => {
-  const defaultProfile = profiles.value.find((item) => item.isDefault) || profiles.value[0]
-  if (!defaultProfile) {
-    return {
-      configCode: '',
-      displayName: '',
-      provider: 'byteplus',
-      endpoint: '',
-      model: '',
-      apiKey: '',
-      timeoutMs: 120000,
-      maxTokens: 3000,
-      enabled: true,
-      isDefault: false,
-      apiKeyConfigured: false
-    }
-  }
   return {
     configCode: '',
     displayName: '',
-    provider: normalizeProvider(defaultProfile.provider),
-    endpoint: defaultProfile.endpoint,
-    model: defaultProfile.model,
+    provider: '',
+    endpoint: '',
+    model: '',
     apiKey: '',
-    timeoutMs: defaultProfile.timeoutMs,
-    maxTokens: defaultProfile.maxTokens,
-    enabled: defaultProfile.enabled,
+    timeoutMs: 120000,
+    maxTokens: 3000,
+    enabled: true,
     isDefault: false,
     apiKeyConfigured: false
   }
@@ -251,6 +246,19 @@ const resetEditor = () => {
   editor.isDefault = !!nextEditor.isDefault
   editor.apiKeyConfigured = !!nextEditor.apiKeyConfigured
 }
+
+watch(
+  () => editor.provider,
+  (nextProvider, previousProvider) => {
+    const nextDefault = defaultEndpointForProvider(nextProvider)
+    if (!nextDefault) return
+    const endpoint = editor.endpoint?.trim() || ''
+    const previousDefault = defaultEndpointForProvider(previousProvider)
+    if (!endpoint || (previousDefault && endpoint === previousDefault)) {
+      editor.endpoint = nextDefault
+    }
+  }
+)
 
 const loadProfiles = async () => {
   loading.value = true

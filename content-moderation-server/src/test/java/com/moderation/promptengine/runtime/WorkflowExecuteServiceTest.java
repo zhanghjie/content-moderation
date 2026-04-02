@@ -14,9 +14,10 @@ import static org.mockito.Mockito.mock;
 
 class WorkflowExecuteServiceTest {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final PromptDslParseService parseService = new PromptDslParseService(new ObjectMapper());
-    private final PromptDslValidationService validationService = new PromptDslValidationService(new ObjectMapper(), parseService);
-    private final WorkflowValueResolver valueResolver = new WorkflowValueResolver();
+    private final PromptDslValidationService validationService = new PromptDslValidationService(objectMapper, parseService);
+    private final WorkflowValueResolver valueResolver = new WorkflowValueResolver(objectMapper);
     private final ScriptNodeExecutor scriptNodeExecutor = new ScriptNodeExecutor(valueResolver);
     private final PromptEngineLlmService llmService = mock(PromptEngineLlmService.class);
     private final WorkflowExecuteService workflowExecuteService = new WorkflowExecuteService(
@@ -24,7 +25,8 @@ class WorkflowExecuteServiceTest {
             parseService,
             valueResolver,
             scriptNodeExecutor,
-            llmService
+            llmService,
+            objectMapper
     );
 
     @Test

@@ -57,6 +57,11 @@ public class VideoAnalysisTaskEntity {
     private String resultJson;
 
     /**
+     * 草稿负载（字符串 JSON）
+     */
+    private String draftPayloadJson;
+
+    /**
      * 违规命中结果（NOT_HIT/HIT/SUSPECTED）
      */
     private String moderationResult;

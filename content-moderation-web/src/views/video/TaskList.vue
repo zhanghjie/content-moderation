@@ -1,295 +1,239 @@
 <template>
-  <div class="bento-audit-stream">
-    <!-- 顶部标题区 -->
-    <div class="stream-header">
-      <div class="header-content">
-        <div class="title-block">
-          <h1 class="stream-title">
-            <div class="title-icon-box">
-              <svg class="title-icon" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-                <circle cx="12" cy="12" r="4" fill="currentColor"/>
-              </svg>
+  <div class="task-overview-page">
+    <el-card shadow="never" class="panel-card">
+      <div class="overview-header">
+        <div>
+          <h2 class="title">AI 审核执行流</h2>
+          <p class="subtitle">以任务维度追踪审核执行状态、结论与违规证据</p>
+        </div>
+        <el-space>
+          <el-button @click="loadData">刷新</el-button>
+          <el-button type="primary" @click="router.push('/video/new')">新建分析</el-button>
+        </el-space>
+      </div>
+    </el-card>
+
+    <el-row :gutter="16" class="stat-row">
+      <el-col :xs="12" :sm="12" :md="8" :lg="4">
+        <el-card shadow="never" class="panel-card stat-card">
+          <div class="stat-label">总任务数</div>
+          <div class="stat-value">{{ statistics.total }}</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="12" :md="8" :lg="4">
+        <el-card shadow="never" class="panel-card stat-card">
+          <div class="stat-label">待处理</div>
+          <div class="stat-value warning">{{ statistics.pending }}</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="12" :md="8" :lg="4">
+        <el-card shadow="never" class="panel-card stat-card">
+          <div class="stat-label">分析中</div>
+          <div class="stat-value info">{{ statistics.processing }}</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="12" :md="8" :lg="4">
+        <el-card shadow="never" class="panel-card stat-card">
+          <div class="stat-label">已完成</div>
+          <div class="stat-value success">{{ statistics.completed }}</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="12" :md="8" :lg="4">
+        <el-card shadow="never" class="panel-card stat-card">
+          <div class="stat-label">命中违规</div>
+          <div class="stat-value danger">{{ statistics.hit }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16">
+      <el-col :xs="24" :sm="24" :md="24" :lg="17">
+        <el-card shadow="never" class="panel-card">
+          <template #header>
+            <div class="panel-header">
+              <span>任务流列表</span>
+              <el-tag effect="plain">{{ tableData.length }} 条</el-tag>
             </div>
-            <span>AI 审核执行流</span>
-          </h1>
-          <p class="stream-subtitle">AI Agent 多模态视频分析过程与风险判定实时追踪</p>
-        </div>
-        <button class="create-bento-btn" @click="router.push('/video/new')">
-          <span class="create-btn-icon">+</span>
-          <span>新建分析</span>
-        </button>
-      </div>
-    </div>
+          </template>
 
-    <!-- Bento 统计卡片区 -->
-    <div class="bento-stats-grid">
-      <div class="bento-stat-card">
-        <div class="stat-icon-box total">
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none">
-            <rect x="4" y="4" width="16" height="16" rx="4" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-        </div>
-        <div class="stat-content">
-          <span class="stat-value">{{ statistics.total }}</span>
-          <span class="stat-label">总任务数</span>
-        </div>
-        <div class="stat-trend">
-          <span class="trend-indicator">全部</span>
-        </div>
-      </div>
-
-      <div class="bento-stat-card pending">
-        <div class="stat-icon-box pending">
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4"/>
-          </svg>
-        </div>
-        <div class="stat-content">
-          <span class="stat-value">{{ statistics.pending }}</span>
-          <span class="stat-label">待处理</span>
-        </div>
-        <div class="stat-trend">
-          <span class="trend-indicator pending">等待中</span>
-        </div>
-      </div>
-
-      <div class="bento-stat-card processing">
-        <div class="stat-icon-box processing">
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="stat-content">
-          <span class="stat-value">{{ statistics.processing }}</span>
-          <span class="stat-label">分析中</span>
-        </div>
-        <div class="stat-trend">
-          <span class="trend-indicator processing">扫描中</span>
-        </div>
-      </div>
-
-      <div class="bento-stat-card completed">
-        <div class="stat-icon-box completed">
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none">
-            <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div class="stat-content">
-          <span class="stat-value">{{ statistics.completed }}</span>
-          <span class="stat-label">已完成</span>
-        </div>
-        <div class="stat-trend">
-          <span class="trend-indicator completed">正常</span>
-        </div>
-      </div>
-
-      <div class="bento-stat-card hit">
-        <div class="stat-icon-box hit">
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none">
-            <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div class="stat-content">
-          <span class="stat-value">{{ statistics.hit }}</span>
-          <span class="stat-label">命中违规</span>
-        </div>
-        <div class="stat-trend">
-          <span class="trend-indicator hit">需处理</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 筛选区 -->
-    <div class="filter-bento-bar">
-      <div class="search-bento-wrapper">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none">
-          <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <input
-          v-model="searchForm.callId"
-          class="search-bento-input"
-          placeholder="搜索 Call ID..."
-          @keyup.enter="handleSearch"
-        />
-      </div>
-      
-      <div class="filter-bento-group">
-        <span class="filter-label">状态：</span>
-        <div class="filter-toggles">
-          <button
-            v-for="opt in statusOptions"
-            :key="opt.value"
-            class="toggle-pill"
-            :class="{ active: searchForm.status === opt.value }"
-            @click="toggleStatus(opt.value)"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
-      </div>
-
-      <div class="filter-bento-group">
-        <span class="filter-label">结果：</span>
-        <div class="filter-toggles">
-          <button
-            v-for="opt in resultOptions"
-            :key="opt.value"
-            class="toggle-pill"
-            :class="{ active: searchForm.result === opt.value }"
-            @click="toggleResult(opt.value)"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 任务节点列表 -->
-    <div class="task-nodes-container" v-loading="loading">
-      <!-- 时间分组 -->
-      <div v-for="(group, idx) in groupedTasks" :key="idx" class="time-group">
-        <div class="group-label">{{ group.label }}</div>
-        
-        <div class="nodes-grid">
-          <div
-            v-for="(task, tIdx) in group.tasks"
-            :key="task.taskId"
-            class="task-bento-card"
-            :class="[
-              'task-' + task.status.toLowerCase(),
-              'result-' + (task.moderationResult || 'unknown').toLowerCase()
-            ]"
-            :style="{ animationDelay: tIdx * 50 + 'ms' }"
-            @click="router.push(`/video/${task.callId}`)"
-          >
-            <!-- 左侧 Icon Box -->
-            <div class="task-icon-wrapper">
-              <div class="task-icon-box" :class="'icon-' + getIconClass(task)">
-                <svg class="task-icon-svg" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-                  <circle cx="12" cy="12" r="4" fill="currentColor"/>
-                </svg>
-              </div>
-            </div>
-
-            <!-- 主体内容 -->
-            <div class="task-bento-body">
-              <!-- 标题行 -->
-              <div class="task-bento-header">
-                <div class="task-title-row">
-                  <span class="task-call-id">{{ task.callId }}</span>
-                </div>
-                <div class="task-status-badges">
-                  <span class="status-pill" :class="'status-' + task.status.toLowerCase()">
-                    {{ getStatusText(task.status) }}
-                  </span>
-                  <span
-                    v-if="task.moderationResult"
-                    class="result-pill"
-                    :class="'result-' + task.moderationResult.toLowerCase()"
-                  >
-                    {{ getResultText(task.moderationResult) }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- 决策条 -->
-              <div class="decision-strip" :class="'strip-' + getDecisionClass(task)">
-                <div class="decision-strip-content">
-                  <span class="decision-icon">{{ getDecisionIcon(task) }}</span>
-                  <span class="decision-text">
-                    <strong>{{ getDecisionTitle(task) }}</strong>
-                    <span class="decision-sep">·</span>
-                    <span>置信度 {{ formatConfidence(task.overallConfidence) }}</span>
-                    <span class="decision-sep" v-if="task.summary?.totalViolations">·</span>
-                    <span v-if="task.summary?.totalViolations">{{ task.summary.totalViolations }} 项违规</span>
-                  </span>
-                </div>
-              </div>
-
-              <!-- 元数据 -->
-              <div class="task-meta-row">
-                <span class="meta-item policy-name" v-if="task.policyName">
-                  {{ task.policyName }}
-                </span>
-                <span class="meta-item policy-name" v-else>
-                  默认策略
-                </span>
-                <span class="meta-divider">|</span>
-                <span class="meta-item">{{ getHostFromCallId(task.callId) }}</span>
-                <span class="meta-divider">|</span>
-                <span class="meta-item">{{ calculateDuration(task.createdAt, task.completedAt) }}</span>
-                <span class="meta-divider">|</span>
-                <span class="meta-item">{{ formatTime(task.createdAt) }}</span>
-              </div>
-            </div>
-
-            <!-- 违规标记 -->
-            <div
-              v-if="task.moderationResult === 'HIT' && task.violations?.length > 0"
-              class="violation-flag"
-              @click.stop
-            >
-              <el-popover
-                placement="bottom-end"
-                :width="400"
-                trigger="hover"
-                :popper-style="{
-                  background: '#fff',
-                  border: '1px solid rgba(0,0,0,0.06)',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  boxShadow: '0 8px 30px rgba(0,0,0,0.08)'
-                }"
-              >
-                <template #reference>
-                  <div class="violation-flag-btn">
-                    <svg class="flag-icon" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span>{{ task.violations.filter(v => v.detected).length }}</span>
+          <div class="task-list-wrap" v-loading="loading">
+            <section v-for="(group, idx) in groupedTasks" :key="idx" class="time-group">
+              <div class="group-label">{{ group.label }}</div>
+              <div class="nodes-grid">
+                <article
+                  v-for="(task, tIdx) in group.tasks"
+                  :key="task.taskId"
+                  class="task-card"
+                  :class="[
+                    'task-' + task.status.toLowerCase(),
+                    'result-' + (task.moderationResult || 'unknown').toLowerCase()
+                  ]"
+                  :style="{ animationDelay: tIdx * 40 + 'ms' }"
+                  @click="openTask(task)"
+                >
+                  <div class="task-header">
+                    <div class="task-call-id">{{ task.callId }}</div>
+                    <div class="task-status-badges">
+                      <span class="status-pill" :class="'status-' + task.status.toLowerCase()">
+                        {{ getStatusText(task.status) }}
+                      </span>
+                      <span
+                        v-if="task.moderationResult"
+                        class="result-pill"
+                        :class="'result-' + task.moderationResult.toLowerCase()"
+                      >
+                        {{ getResultText(task.moderationResult) }}
+                      </span>
+                    </div>
                   </div>
-                </template>
-                <div class="violation-popover-content">
-                  <div class="popover-title">违规检测详情</div>
+
+                  <div class="decision-strip" :class="'strip-' + getDecisionClass(task)">
+                    <div class="decision-strip-content">
+                      <span class="decision-icon">{{ getDecisionIcon(task) }}</span>
+                      <span class="decision-text">
+                        <strong>{{ getDecisionTitle(task) }}</strong>
+                        <template v-if="task.status !== 'DRAFT' && task.overallConfidence != null">
+                          <span class="decision-sep">·</span>
+                          <span>置信度 {{ formatConfidence(task.overallConfidence) }}</span>
+                        </template>
+                        <span class="decision-sep" v-if="task.summary?.totalViolations">·</span>
+                        <span v-if="task.summary?.totalViolations">{{ task.summary.totalViolations }} 项违规</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="task-meta-row">
+                    <span class="meta-item policy-name">{{ task.policyName || '默认策略' }}</span>
+                    <span class="meta-divider">|</span>
+                    <span class="meta-item">{{ getHostFromCallId(task.callId) }}</span>
+                    <span class="meta-divider">|</span>
+                    <span class="meta-item">{{ calculateDuration(task.createdAt, task.completedAt) }}</span>
+                    <span class="meta-divider">|</span>
+                    <span class="meta-item">{{ formatTime(task.createdAt) }}</span>
+                  </div>
+
                   <div
-                    v-for="(v, i) in task.violations.filter(v => v.detected)"
-                    :key="i"
-                    class="violation-detail-item"
+                    v-if="task.moderationResult === 'HIT' && task.violations?.length > 0"
+                    class="violation-flag"
+                    @click.stop
                   >
-                    <div class="violation-detail-header">
-                      <span class="violation-type-label">{{ v.type }}</span>
-                      <span class="violation-time-label">{{ v.startSec }}s — {{ v.endSec }}s</span>
-                      <span class="violation-conf-label">{{ formatConfidence(v.confidence) }}</span>
-                    </div>
-                    <div class="violation-evidence">{{ truncateText(v.evidence, 80) }}</div>
-                    <div class="violation-conf-bar">
-                      <div class="conf-fill" :style="{ width: formatConfidence(v.confidence) }"></div>
-                    </div>
+                    <el-popover
+                      placement="bottom-end"
+                      :width="400"
+                      trigger="hover"
+                      :popper-style="{
+                        background: '#fff',
+                        border: '1px solid rgba(0,0,0,0.06)',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.08)'
+                      }"
+                    >
+                      <template #reference>
+                        <div class="violation-flag-btn">
+                          <span>违规 {{ task.violations.filter(v => v.detected).length }}</span>
+                        </div>
+                      </template>
+                      <div class="violation-popover-content">
+                        <div class="popover-title">违规检测详情</div>
+                        <div
+                          v-for="(v, i) in task.violations.filter(v => v.detected)"
+                          :key="i"
+                          class="violation-detail-item"
+                        >
+                          <div class="violation-detail-header">
+                            <span class="violation-type-label">{{ v.type }}</span>
+                            <span class="violation-time-label">{{ v.startSec }}s — {{ v.endSec }}s</span>
+                            <span class="violation-conf-label">{{ formatConfidence(v.confidence) }}</span>
+                          </div>
+                          <div class="violation-evidence">{{ truncateText(v.evidence, 80) }}</div>
+                        </div>
+                      </div>
+                    </el-popover>
                   </div>
-                </div>
-              </el-popover>
+                </article>
+              </div>
+            </section>
+
+            <el-empty v-if="!loading && tableData.length === 0" description="暂无分析任务记录" :image-size="96">
+              <el-button type="primary" @click="router.push('/video/new')">创建第一个任务</el-button>
+            </el-empty>
+          </div>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :sm="24" :md="24" :lg="7">
+        <el-card shadow="never" class="panel-card">
+          <template #header>
+            <div class="panel-header">
+              <span>筛选条件</span>
+            </div>
+          </template>
+
+          <div class="filter-block">
+            <div class="filter-label">Call ID</div>
+            <el-input
+              v-model="searchForm.callId"
+              placeholder="输入 Call ID 回车搜索"
+              @keyup.enter="handleSearch"
+            />
+          </div>
+
+          <div class="filter-block">
+            <div class="filter-label">Policy</div>
+            <el-select
+              v-model="searchForm.policyId"
+              filterable
+              clearable
+              placeholder="按 Policy 筛选"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="policy in policyOptions"
+                :key="policy.policyId"
+                :label="`${policy.name || policy.policyId}（${policy.policyId}）`"
+                :value="policy.policyId"
+              />
+            </el-select>
+          </div>
+
+          <div class="filter-block">
+            <div class="filter-label">状态</div>
+            <div class="toggle-list">
+              <button
+                v-for="opt in statusOptions"
+                :key="opt.value"
+                class="toggle-pill"
+                :class="{ active: searchForm.status === opt.value }"
+                @click="toggleStatus(opt.value)"
+              >
+                {{ opt.label }}
+              </button>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- 空状态 -->
-      <div v-if="!loading && tableData.length === 0" class="bento-empty-state">
-        <div class="empty-icon-wrapper">
-          <svg class="empty-icon-svg" viewBox="0 0 24 24" fill="none">
-            <rect x="4" y="4" width="16" height="16" rx="4" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="empty-text">暂无分析任务记录</div>
-        <button class="empty-bento-btn" @click="router.push('/video/new')">
-          <span>+</span> 创建第一个任务
-        </button>
-      </div>
-    </div>
+          <div class="filter-block">
+            <div class="filter-label">结果</div>
+            <div class="toggle-list">
+              <button
+                v-for="opt in resultOptions"
+                :key="opt.value"
+                class="toggle-pill"
+                :class="{ active: searchForm.result === opt.value }"
+                @click="toggleResult(opt.value)"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+          </div>
+
+          <el-space>
+            <el-button type="primary" @click="handleSearch">查询</el-button>
+            <el-button @click="handleReset">重置</el-button>
+          </el-space>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
@@ -298,12 +242,14 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { videoApi } from '@/api/video'
 import type { VideoAnalysisTask } from '@/types/video'
+import { skillOsApi, type PolicyDefinition } from '@/api/skillos'
 
 const router = useRouter()
 const loading = ref(false)
 
 const searchForm = reactive({
   callId: '',
+  policyId: '',
   status: '',
   result: ''
 })
@@ -317,9 +263,11 @@ const statistics = reactive({
 })
 
 const tableData = ref<VideoAnalysisTask[]>([])
+const policyOptions = ref<PolicyDefinition[]>([])
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
 const statusOptions = [
+  { label: '草稿', value: 'DRAFT' },
   { label: '待处理', value: 'PENDING' },
   { label: '分析中', value: 'PROCESSING' },
   { label: '已完成', value: 'COMPLETED' },
@@ -338,27 +286,22 @@ const groupedTasks = computed(() => {
   today.setHours(0, 0, 0, 0)
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
-  
+
   const groups: Array<{ label: string; tasks: VideoAnalysisTask[] }> = [
     { label: '今天', tasks: [] },
     { label: '昨天', tasks: [] },
     { label: '更早', tasks: [] }
   ]
-  
+
   tableData.value.forEach(task => {
     if (!task.createdAt) return
     const taskDate = new Date(task.createdAt)
     taskDate.setHours(0, 0, 0, 0)
-    
-    if (taskDate.getTime() === today.getTime()) {
-      groups[0].tasks.push(task)
-    } else if (taskDate.getTime() === yesterday.getTime()) {
-      groups[1].tasks.push(task)
-    } else {
-      groups[2].tasks.push(task)
-    }
+    if (taskDate.getTime() === today.getTime()) groups[0].tasks.push(task)
+    else if (taskDate.getTime() === yesterday.getTime()) groups[1].tasks.push(task)
+    else groups[2].tasks.push(task)
   })
-  
+
   return groups.filter(g => g.tasks.length > 0)
 })
 
@@ -370,17 +313,8 @@ function toggleResult(value: string) {
   searchForm.result = searchForm.result === value ? '' : value
 }
 
-function getIconClass(task: VideoAnalysisTask): string {
-  if (task.moderationResult === 'HIT') return 'hit'
-  if (task.moderationResult === 'NOT_HIT') return 'completed'
-  if (task.status === 'PENDING') return 'pending'
-  if (task.status === 'PROCESSING') return 'processing'
-  if (task.status === 'FAILED') return 'failed'
-  return 'completed'
-}
-
 function getStatusText(status: string) {
-  return { PENDING: '待处理', PROCESSING: '分析中', COMPLETED: '已完成', FAILED: '失败' }[status] || status
+  return { DRAFT: '草稿', PENDING: '待处理', PROCESSING: '分析中', COMPLETED: '已完成', FAILED: '失败' }[status] || status
 }
 
 function getResultText(result: string) {
@@ -388,6 +322,7 @@ function getResultText(result: string) {
 }
 
 function getDecisionClass(task: VideoAnalysisTask): string {
+  if (task.status === 'DRAFT') return 'draft'
   if (task.moderationResult === 'NOT_HIT') return 'clean'
   if (task.moderationResult === 'HIT') return 'hit'
   if (task.moderationResult === 'SUSPECTED') return 'suspect'
@@ -398,6 +333,7 @@ function getDecisionClass(task: VideoAnalysisTask): string {
 }
 
 function getDecisionIcon(task: VideoAnalysisTask): string {
+  if (task.status === 'DRAFT') return '✎'
   if (task.moderationResult === 'NOT_HIT') return '✓'
   if (task.moderationResult === 'HIT') return '⚠'
   if (task.moderationResult === 'SUSPECTED') return '？'
@@ -408,9 +344,11 @@ function getDecisionIcon(task: VideoAnalysisTask): string {
 }
 
 function getDecisionTitle(task: VideoAnalysisTask): string {
+  if (task.status === 'DRAFT') return '草稿待执行'
   if (task.moderationResult === 'NOT_HIT') return '未命中违规'
   if (task.moderationResult === 'HIT') return `命中：${getPrimaryViolation(task)}`
   if (task.moderationResult === 'SUSPECTED') return '疑似风险'
+  if (task.status === 'COMPLETED') return '分析完成'
   if (task.status === 'PENDING') return '等待分析'
   if (task.status === 'PROCESSING') return 'AI 分析中'
   if (task.status === 'FAILED') return '分析失败'
@@ -418,13 +356,13 @@ function getDecisionTitle(task: VideoAnalysisTask): string {
 }
 
 function getPrimaryViolation(task: VideoAnalysisTask): string {
-  return task.summary?.primaryViolation?.replace(/_/g, ' ') || 
-         task.violations?.find(v => v.detected)?.type.replace(/_/g, ' ') || 
-         '未知违规'
+  return task.summary?.primaryViolation?.replace(/_/g, ' ') ||
+    task.violations?.find(v => v.detected)?.type.replace(/_/g, ' ') ||
+    '未知违规'
 }
 
 function formatConfidence(value?: number): string {
-  if (value == null) return '0%'
+  if (value == null) return '--'
   return `${Math.round(value * 100)}%`
 }
 
@@ -450,9 +388,20 @@ function getHostFromCallId(callId: string): string {
   return parts[0] || '默认'
 }
 
+function openTask(task: VideoAnalysisTask) {
+  if (task.status === 'DRAFT') {
+    router.push({
+      path: '/video/new',
+      query: { draftId: task.taskId }
+    })
+    return
+  }
+  router.push(`/video/${task.callId}`)
+}
+
 function truncateText(text: string, max: number): string {
   if (!text) return ''
-  return text.length <= max ? text : text.slice(0, max) + '...'
+  return text.length <= max ? text : `${text.slice(0, max)}...`
 }
 
 async function loadData() {
@@ -460,17 +409,31 @@ async function loadData() {
   try {
     const result = await videoApi.getList({
       callId: searchForm.callId || undefined,
+      policyId: searchForm.policyId || undefined,
       status: searchForm.status || undefined,
       result: searchForm.result || undefined,
       page: pagination.page,
       pageSize: pagination.pageSize
     })
-    tableData.value = result.list
+    tableData.value = (result.list || []).sort((a, b) => {
+      const at = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return bt - at
+    })
     pagination.total = result.total
   } catch (e) {
     console.error('加载失败:', e)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadPolicyOptions() {
+  try {
+    const res = await skillOsApi.listPolicies()
+    policyOptions.value = (res.policies || []).slice().sort((a, b) => a.policyId.localeCompare(b.policyId))
+  } catch (e) {
+    console.error('Policy 列表加载失败:', e)
   }
 }
 
@@ -500,6 +463,7 @@ function handleSearch() {
 
 function handleReset() {
   searchForm.callId = ''
+  searchForm.policyId = ''
   searchForm.status = ''
   searchForm.result = ''
   pagination.page = 1
@@ -507,830 +471,312 @@ function handleReset() {
 }
 
 onMounted(() => {
+  loadPolicyOptions()
   loadStatistics()
   loadData()
 })
 </script>
 
 <style scoped>
-/* ===== 基础 ===== */
-.bento-audit-stream {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
-  color: #1E293B;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
-  padding: 24px;
-}
-
-/* ===== 顶部 ===== */
-.stream-header {
-  max-width: 1400px;
-  margin: 0 auto 24px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.title-block {
+.task-overview-page {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.stream-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-  color: #0F172A;
-}
-
-.title-icon-box {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(16,185,129,0.2);
-}
-
-.title-icon {
-  width: 18px;
-  height: 18px;
-  color: #fff;
-}
-
-.stream-subtitle {
-  font-size: 13px;
-  color: #64748B;
-  margin: 0;
-}
-
-.create-bento-btn {
-  height: 40px;
-  padding: 0 20px;
-  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-  border: none;
-  border-radius: 10px;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.2);
-}
-
-.create-bento-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(15,23,42,0.25);
-}
-
-.create-btn-icon {
-  font-size: 18px;
-  color: #10B981;
-}
-
-/* ===== Bento 统计卡片 ===== */
-.bento-stats-grid {
-  max-width: 1400px;
-  margin: 0 auto 20px;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
+  padding: 8px;
 }
 
-.bento-stat-card {
-  background: rgba(255,255,255,0.9);
-  backdrop-filter: blur(12px);
-  border-radius: 12px;
-  padding: 16px;
+.panel-card {
+  border-radius: 14px;
+}
+
+.overview-header,
+.panel-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  ring: 1px rgba(148,163,184,0.1);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.04);
-  transition: all 0.2s ease;
 }
 
-.bento-stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.06);
+.title {
+  margin: 0;
+  font-size: 22px;
+  color: #0f172a;
 }
 
-.stat-icon-box {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+.subtitle {
+  margin: 6px 0 0;
+  color: #64748b;
 }
 
-.stat-icon-box.total {
-  background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
-  color: #475569;
+.stat-row {
+  margin: 0;
 }
 
-.stat-icon-box.pending {
-  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-  color: #92400E;
-}
-
-.stat-icon-box.processing {
-  background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
-  color: #1D4ED8;
-}
-
-.stat-icon-box.completed {
-  background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
-  color: #047857;
-}
-
-.stat-icon-box.hit {
-  background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
-  color: #DC2626;
-}
-
-.stat-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.stat-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: #0F172A;
-  font-variant-numeric: tabular-nums;
+.stat-card :deep(.el-card__body) {
+  padding: 14px 16px;
 }
 
 .stat-label {
-  font-size: 11px;
-  color: #64748B;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 12px;
+  color: #64748b;
 }
 
-.stat-trend {
-  display: flex;
-  align-items: center;
+.stat-value {
+  margin-top: 4px;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 700;
+  color: #0f172a;
 }
 
-.trend-indicator {
-  font-size: 10px;
-  padding: 3px 8px;
-  background: #F1F5F9;
-  color: #64748B;
-  border-radius: 10px;
-  font-weight: 500;
-}
+.stat-value.warning { color: #b45309; }
+.stat-value.info { color: #1d4ed8; }
+.stat-value.success { color: #047857; }
+.stat-value.danger { color: #b91c1c; }
 
-.trend-indicator.pending {
-  background: #FEF3C7;
-  color: #92400E;
-}
-
-.trend-indicator.processing {
-  background: #DBEAFE;
-  color: #1D4ED8;
-}
-
-.trend-indicator.completed {
-  background: #D1FAE5;
-  color: #047857;
-}
-
-.trend-indicator.hit {
-  background: #FEE2E2;
-  color: #DC2626;
-}
-
-/* ===== 筛选区 ===== */
-.filter-bento-bar {
-  max-width: 1400px;
-  margin: 0 auto 24px;
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.search-bento-wrapper {
-  position: relative;
-  flex: 1;
-  min-width: 240px;
-  max-width: 320px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  color: #94A3B8;
-}
-
-.search-bento-input {
-  width: 100%;
-  height: 40px;
-  padding: 0 14px 0 42px;
-  background: rgba(255,255,255,0.9);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(148,163,184,0.2);
-  border-radius: 10px;
-  font-size: 13px;
-  color: #0F172A;
-  transition: all 0.2s ease;
-}
-
-.search-bento-input:focus {
-  outline: none;
-  border-color: rgba(148,163,184,0.4);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-}
-
-.search-bento-input::placeholder {
-  color: #94A3B8;
-}
-
-.filter-bento-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.filter-block {
+  margin-bottom: 14px;
 }
 
 .filter-label {
+  margin-bottom: 6px;
   font-size: 12px;
-  color: #64748B;
-  font-weight: 500;
+  font-weight: 600;
+  color: #64748b;
 }
 
-.filter-toggles {
+.toggle-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
 .toggle-pill {
-  height: 32px;
-  padding: 0 14px;
-  background: rgba(255,255,255,0.6);
-  border: 1px solid rgba(148,163,184,0.2);
-  border-radius: 16px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid #dbe3ee;
+  background: #fff;
+  color: #475569;
   font-size: 12px;
-  font-weight: 500;
-  color: #64748B;
+  padding: 0 10px;
   cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.toggle-pill:hover {
-  background: rgba(255,255,255,0.9);
-  color: #0F172A;
 }
 
 .toggle-pill.active {
-  background: #0F172A;
-  border-color: #0F172A;
-  color: #fff;
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
 }
 
-/* ===== 任务节点容器 ===== */
-.task-nodes-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  min-height: 500px;
+.task-list-wrap {
+  min-height: 520px;
 }
 
-/* 时间分组 */
 .time-group {
-  margin-bottom: 32px;
+  margin-bottom: 18px;
 }
 
 .group-label {
+  margin-bottom: 10px;
   font-size: 12px;
   font-weight: 600;
-  color: #64748B;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 16px;
-  padding-left: 8px;
+  color: #64748b;
 }
 
 .nodes-grid {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-/* ===== 任务 Bento 卡片 ===== */
-.task-bento-card {
+.task-card {
   position: relative;
-  display: flex;
-  gap: 16px;
-  padding: 20px;
-  background: rgba(255,255,255,0.9);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(148,163,184,0.15);
-  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  padding: 14px;
+  background: #fff;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.04);
-  animation: cardFadeIn 0.4s ease forwards;
+  transition: all 0.2s ease;
+  animation: cardFadeIn 0.3s ease forwards;
   opacity: 0;
 }
 
+.task-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
 @keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.task-bento-card:hover {
-  transform: translateY(-3px);
-  border-color: rgba(148,163,184,0.25);
-  box-shadow: 0 16px 50px rgba(0,0,0,0.08);
-}
-
-/* 状态色左边框 */
-.task-pending { border-left: 3px solid #F59E0B; }
-.task-processing { border-left: 3px solid #3B82F6; }
-.task-completed { border-left: 3px solid #10B981; }
-.task-failed { border-left: 3px solid #EF4444; }
+.task-pending { border-left-color: #f59e0b; }
+.task-processing { border-left-color: #3b82f6; }
+.task-completed { border-left-color: #10b981; }
+.task-failed { border-left-color: #ef4444; }
+.task-draft { border-left-color: #6366f1; }
 
 .result-hit {
-  background: linear-gradient(90deg, rgba(254,242,242,0.5) 0%, rgba(255,255,255,0.9) 100%);
+  background: linear-gradient(90deg, rgba(254, 242, 242, 0.58) 0%, #fff 100%);
 }
 
-/* Icon 容器 */
-.task-icon-wrapper {
-  flex-shrink: 0;
-  padding-top: 4px;
-}
-
-.task-icon-box {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+.task-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-
-.task-icon-box.icon-completed {
-  background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
-  color: #047857;
-}
-
-.task-icon-box.icon-hit {
-  background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
-  color: #DC2626;
-}
-
-.task-icon-box.icon-pending {
-  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-  color: #92400E;
-}
-
-.task-icon-box.icon-processing {
-  background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
-  color: #1D4ED8;
-}
-
-.task-icon-box.icon-failed {
-  background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
-  color: #64748B;
-}
-
-.task-icon-svg {
-  width: 22px;
-  height: 22px;
-}
-
-/* 主体内容 */
-.task-bento-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* 标题行 */
-.task-bento-header {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-}
-
-.task-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
+  gap: 8px;
 }
 
 .task-call-id {
-  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 14px;
   font-weight: 600;
-  color: #0F172A;
-  letter-spacing: -0.01em;
-}
-
-.task-type-badge {
-  font-size: 11px;
-  padding: 3px 8px;
-  background: #F1F5F9;
-  color: #475569;
-  border-radius: 6px;
-  font-weight: 500;
+  color: #0f172a;
 }
 
 .task-status-badges {
   display: flex;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.status-pill {
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-weight: 500;
-  background: #F1F5F9;
-  color: #475569;
-}
-
-.status-pill.status-pending {
-  background: #FEF3C7;
-  color: #92400E;
-}
-
-.status-pill.status-processing {
-  background: #DBEAFE;
-  color: #1D4ED8;
-}
-
-.status-pill.status-completed {
-  background: #D1FAE5;
-  color: #047857;
-}
-
-.status-pill.status-failed {
-  background: #FEE2E2;
-  color: #DC2626;
-}
-
+.status-pill,
 .result-pill {
-  font-size: 11px;
-  padding: 4px 10px;
   border-radius: 8px;
-  font-weight: 500;
-  background: #F1F5F9;
-  color: #475569;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
-.result-pill.result-not-hit {
-  background: #D1FAE5;
-  color: #047857;
-}
+.status-pill.status-pending { background: #fef3c7; color: #92400e; }
+.status-pill.status-processing { background: #dbeafe; color: #1d4ed8; }
+.status-pill.status-completed { background: #d1fae5; color: #047857; }
+.status-pill.status-failed { background: #fee2e2; color: #dc2626; }
+.status-pill.status-draft { background: #e0e7ff; color: #4338ca; }
+.result-pill.result-not-hit { background: #d1fae5; color: #047857; }
+.result-pill.result-hit { background: #fee2e2; color: #dc2626; }
+.result-pill.result-suspected { background: #fef3c7; color: #92400e; }
 
-.result-pill.result-hit {
-  background: #FEE2E2;
-  color: #DC2626;
-}
-
-.result-pill.result-suspected {
-  background: #FEF3C7;
-  color: #92400E;
-}
-
-/* 决策条 */
 .decision-strip {
-  padding: 12px 14px;
+  margin-top: 10px;
   border-radius: 10px;
   border-left: 3px solid;
-  transition: all 0.2s ease;
+  padding: 9px 10px;
 }
 
 .decision-strip-content {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  gap: 8px;
   font-size: 12px;
   color: #475569;
-  line-height: 1.5;
-}
-
-.decision-icon {
-  font-size: 15px;
-  flex-shrink: 0;
-}
-
-.decision-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
 }
 
 .decision-text strong {
-  color: #0F172A;
-  font-weight: 600;
+  color: #0f172a;
 }
 
 .decision-sep {
-  color: #CBD5E1;
-  font-size: 10px;
+  color: #cbd5e1;
 }
 
-/* 决策条颜色 */
-.decision-strip.strip-clean {
-  background: #F0FDF4;
-  border-left-color: #10B981;
-}
+.decision-strip.strip-clean { background: #f0fdf4; border-left-color: #10b981; }
+.decision-strip.strip-hit { background: #fef2f2; border-left-color: #ef4444; }
+.decision-strip.strip-suspect { background: #fef3c7; border-left-color: #f59e0b; }
+.decision-strip.strip-draft { background: #eef2ff; border-left-color: #6366f1; }
+.decision-strip.strip-pending { background: #f8fafc; border-left-color: #f59e0b; }
+.decision-strip.strip-processing { background: #eff6ff; border-left-color: #3b82f6; }
+.decision-strip.strip-failed { background: #fef2f2; border-left-color: #ef4444; }
 
-.decision-strip.strip-hit {
-  background: #FEF2F2;
-  border-left-color: #EF4444;
-}
-
-.decision-strip.strip-suspect {
-  background: #FEF3C7;
-  border-left-color: #F59E0B;
-}
-
-.decision-strip.strip-pending {
-  background: #F8FAFC;
-  border-left-color: #F59E0B;
-}
-
-.decision-strip.strip-processing {
-  background: #EFF6FF;
-  border-left-color: #3B82F6;
-}
-
-.decision-strip.strip-failed {
-  background: #FEF2F2;
-  border-left-color: #EF4444;
-}
-
-/* 元数据行 */
 .task-meta-row {
+  margin-top: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   font-size: 11px;
-  color: #94A3B8;
-  font-family: 'JetBrains Mono', 'SF Mono', monospace;
-  opacity: 0.6;
-}
-
-.meta-item {
-  color: inherit;
+  color: #94a3b8;
 }
 
 .meta-item.policy-name {
-  font-weight: 500;
-  color: #6366F1;
-  opacity: 1;
+  color: #4f46e5;
+  font-weight: 600;
 }
 
 .meta-divider {
-  color: #E2E8F0;
-  font-size: 9px;
+  color: #e2e8f0;
 }
 
-/* 违规标记 */
 .violation-flag {
   position: absolute;
-  right: 20px;
-  bottom: 20px;
+  right: 14px;
+  bottom: 14px;
 }
 
 .violation-flag-btn {
-  padding: 8px 14px;
-  background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
-  border-radius: 10px;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: #fee2e2;
+  color: #dc2626;
   font-size: 11px;
   font-weight: 600;
-  color: #DC2626;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(220,38,38,0.15);
 }
 
-.violation-flag-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(220,38,38,0.2);
-}
-
-.flag-icon {
-  width: 16px;
-  height: 16px;
-}
-
-/* 违规详情 Popover */
 .violation-popover-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .popover-title {
   font-size: 12px;
   font-weight: 600;
-  color: #0F172A;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(148,163,184,0.15);
+  color: #0f172a;
 }
 
 .violation-detail-item {
-  padding: 12px;
-  background: #F8FAFC;
+  border: 1px solid rgba(220, 38, 38, 0.1);
   border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid rgba(220,38,38,0.08);
+  background: #f8fafc;
+  padding: 8px;
 }
 
 .violation-detail-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   gap: 8px;
 }
 
 .violation-type-label {
+  color: #dc2626;
   font-size: 11px;
   font-weight: 600;
-  color: #DC2626;
 }
 
 .violation-time-label,
 .violation-conf-label {
   font-size: 10px;
-  color: #64748B;
-  font-family: 'JetBrains Mono', monospace;
+  color: #64748b;
 }
 
 .violation-evidence {
+  margin-top: 6px;
   font-size: 10px;
   color: #475569;
-  line-height: 1.4;
-}
-
-.violation-conf-bar {
-  height: 4px;
-  background: #E2E8F0;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.conf-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #DC2626 0%, #F87171 100%);
-  border-radius: 2px;
-}
-
-/* ===== 空状态 ===== */
-.bento-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  gap: 20px;
-}
-
-.empty-icon-wrapper {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.04);
-}
-
-.empty-icon-svg {
-  width: 36px;
-  height: 36px;
-  color: #94A3B8;
-}
-
-.empty-text {
-  font-size: 14px;
-  color: #64748B;
-}
-
-.empty-bento-btn {
-  height: 42px;
-  padding: 0 24px;
-  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-  border: none;
-  border-radius: 12px;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.2);
-}
-
-.empty-bento-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(15,23,42,0.25);
-}
-
-.empty-bento-btn span {
-  font-size: 20px;
-  color: #10B981;
-}
-
-/* ===== 响应式 ===== */
-@media (max-width: 1200px) {
-  .bento-stats-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 @media (max-width: 768px) {
-  .bento-audit-stream {
-    padding: 16px;
-  }
-
-  .header-content {
-    flex-direction: column;
-    gap: 16px;
-    align-items: flex-start;
-  }
-
-  .bento-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .filter-bento-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .search-bento-wrapper {
-    max-width: none;
-  }
-
-  .filter-bento-group {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .task-bento-header {
+  .overview-header,
+  .panel-header,
+  .task-header {
     flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .task-meta-row {
-    flex-wrap: wrap;
-    gap: 6px;
   }
 
   .violation-flag {
     position: static;
-    margin-top: 12px;
+    margin-top: 10px;
   }
 }
 </style>

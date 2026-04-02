@@ -2,7 +2,9 @@ package com.moderation.controller;
 
 import com.moderation.common.BaseResult;
 import com.moderation.model.req.VideoAnalyzeReq;
+import com.moderation.model.req.VideoDraftSaveReq;
 import com.moderation.model.res.VideoAnalyzeRes;
+import com.moderation.model.res.VideoDraftRes;
 import com.moderation.model.res.PromptModulesRes;
 import com.moderation.model.res.TaskListRes;
 import com.moderation.prompt.PromptCatalogService;
@@ -51,6 +53,27 @@ public class VideoAnalysisController {
         return BaseResult.success(result);
     }
 
+    @PostMapping("/drafts")
+    @Operation(summary = "保存草稿", description = "保存或更新分析草稿")
+    public BaseResult<VideoDraftRes> saveDraft(@RequestBody @Validated VideoDraftSaveReq req) {
+        VideoDraftRes result = videoAnalysisService.saveDraft(req);
+        return BaseResult.success(result);
+    }
+
+    @GetMapping("/drafts/{taskId}")
+    @Operation(summary = "查询草稿", description = "根据 taskId 查询草稿")
+    public BaseResult<VideoDraftRes> getDraft(@PathVariable String taskId) {
+        VideoDraftRes result = videoAnalysisService.getDraft(taskId);
+        return BaseResult.success(result);
+    }
+
+    @PostMapping("/drafts/{taskId}/execute")
+    @Operation(summary = "执行草稿", description = "执行指定草稿并将该任务状态更新为执行结果")
+    public BaseResult<VideoAnalyzeRes> executeDraft(@PathVariable String taskId) {
+        VideoAnalyzeRes result = videoAnalysisService.executeDraft(taskId);
+        return BaseResult.success(result);
+    }
+
     @PostMapping("/reanalyze/{callId}")
     @Operation(summary = "重新分析任务", description = "基于最近一次任务参数重新触发分析")
     public BaseResult<VideoAnalyzeRes> reAnalyze(@PathVariable String callId) {
@@ -62,12 +85,13 @@ public class VideoAnalysisController {
     @Operation(summary = "查询任务列表", description = "分页查询视频分析任务列表")
     public BaseResult<TaskListRes> getTasks(
             @RequestParam(required = false) String callId,
+            @RequestParam(required = false) String policyId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String result,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer pageSize
     ) {
-        TaskListRes res = videoAnalysisService.getTasks(callId, status, result, page, pageSize);
+        TaskListRes res = videoAnalysisService.getTasks(callId, policyId, status, result, page, pageSize);
         return BaseResult.success(res);
     }
 

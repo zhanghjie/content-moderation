@@ -21,6 +21,7 @@ import com.moderation.skillos.planner.DefaultStaticPolicyPlanner;
 import com.moderation.skillos.registry.PolicyRegistry;
 import com.moderation.skillos.registry.SkillRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moderation.service.LlmProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.StaticApplicationContext;
@@ -47,7 +48,10 @@ class PolicyExecutionEngineTest {
         StaticApplicationContext applicationContext = new StaticApplicationContext();
         applicationContext.getBeanFactory().registerSingleton("roleDetectSkillExecutor", new RoleDetectSkillExecutor());
         applicationContext.getBeanFactory().registerSingleton("videoParseSkillExecutor", new VideoParseSkillExecutor());
-        applicationContext.getBeanFactory().registerSingleton("asrSkillExecutor", new AsrSkillExecutor());
+        applicationContext.getBeanFactory().registerSingleton(
+                "asrSkillExecutor",
+                new AsrSkillExecutor(skillRegistry, Mockito.mock(LlmProfileService.class), new ObjectMapper())
+        );
         applicationContext.getBeanFactory().registerSingleton("semanticAnalysisSkillExecutor", new SemanticAnalysisSkillExecutor());
         applicationContext.getBeanFactory().registerSingleton("violationCallInBedSkillExecutor", new ViolationCallInBedSkillExecutor());
         applicationContext.getBeanFactory().registerSingleton("violationBlackScreenSkillExecutor", new ViolationBlackScreenSkillExecutor());

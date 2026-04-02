@@ -262,7 +262,12 @@
               class="trace-table"
               @row-click="onTraceRowClick"
             >
-              <el-table-column prop="skillId" label="Skill" min-width="170" />
+              <el-table-column label="Skill" min-width="220">
+                <template #default="{ row }">
+                  <span>{{ getPipelineSkillName(row.skillId) }}</span>
+                  <span v-if="row.skillId && getPipelineSkillName(row.skillId) !== row.skillId" class="skill-id-inline">（{{ row.skillId }}）</span>
+                </template>
+              </el-table-column>
               <el-table-column prop="durationMs" label="耗时(ms)" width="110" />
               <el-table-column label="状态" width="100">
                 <template #default="{ row }">
@@ -379,7 +384,7 @@ const defaultRunInputText = '{"videoUrl":"https://demo/video_call_black.mp4","tr
 const runInputText = ref(defaultRunInputText)
 const configText = ref('{}')
 const activeStateTab = ref<'overview' | 'traces' | 'raw'>('overview')
-const stateResultWrap = ref(false)
+const stateResultWrap = ref(true)
 const selectedTraceIndex = ref(0)
 const jsonDialogVisible = ref(false)
 const jsonDialogTitle = ref('')

@@ -1,5 +1,6 @@
 package com.moderation.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moderation.config.LLMProperties;
 import com.moderation.model.impl.LLMIntegrationService;
 import com.moderation.service.LlmProfileService;
@@ -37,6 +38,7 @@ public class LLMIntegrationServiceImpl implements LLMIntegrationService {
         
         // 构建请求
         Map<String, Object> requestBody = buildRequestBody(videoUrl, prompt, profile);
+        logRequestBody(requestBody, contentId);
         
         // 设置请求头
         HttpHeaders headers = new HttpHeaders();
@@ -128,6 +130,16 @@ public class LLMIntegrationServiceImpl implements LLMIntegrationService {
      */
     private String buildPrompt() {
         return llmProperties.getPromptTemplate();
+    }
+
+    private void logRequestBody(Map<String, Object> requestBody, String contentId) {
+        try {
+            String requestJson = new ObjectMapper().writeValueAsString(requestBody);
+            log.info("BytePlus API request body, contentId: {}, body: {}", contentId, requestJson);
+        } catch (Exception e) {
+            log.warn("Failed to serialize BytePlus API request body, contentId: {}", contentId, e);
+            log.info("BytePlus API request body, contentId: {}, body: {}", contentId, requestBody);
+        }
     }
     
     /**

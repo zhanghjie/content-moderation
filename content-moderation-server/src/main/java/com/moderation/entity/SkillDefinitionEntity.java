@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 
 @Data
 public class SkillDefinitionEntity {
+    private Long id;
     private String skillId;
     private String name;
     private String type;

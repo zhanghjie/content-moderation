@@ -10,6 +10,11 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public enum TaskStatus {
+
+    /**
+     * 草稿
+     */
+    DRAFT("DRAFT", "草稿"),
     
     /**
      * 待处理

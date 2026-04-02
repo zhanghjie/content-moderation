@@ -1,5 +1,6 @@
 package com.moderation.service.impl;
 
+import com.moderation.llm.GeminiApiSupport;
 import com.moderation.model.req.ApiConnectionTestReq;
 import com.moderation.model.res.ApiConnectionTestRes;
 import com.moderation.service.LlmProfileService;
@@ -54,7 +55,7 @@ class ApiConfigServiceImplTest {
         LlmProfileService profileService = Mockito.mock(LlmProfileService.class);
         Mockito.when(profileService.findByCode("DEEPSEEK")).thenReturn(Optional.of(
                 new LlmProfileService.LlmRuntimeProfile(
-                        "DEEPSEEK", "deepseek", " `http://127.0.0.1:" + port + "` ", "deepseek-chat", "valid-key", 3000, 1
+                        "DEEPSEEK", "deepseek", "http://127.0.0.1:" + port, "deepseek-chat", "valid-key", 3000, 1
                 )
         ));
         ApiConfigServiceImpl service = new ApiConfigServiceImpl(profileService);
@@ -66,6 +67,25 @@ class ApiConfigServiceImplTest {
         assertEquals(200, res.getStatusCode(), res.getMessage());
         assertTrue(res.getSuccess());
         assertEquals("连接成功", res.getMessage());
+    }
+
+    @Test
+    void geminiResolverShouldFallbackToDefaultModelWhenEndpointLooksLikeGemini() {
+        String model = GeminiApiSupport.resolveTestModel(
+                "deepseek",
+                "https://generativelanguage.googleapis.com",
+                "deepseek-chat"
+        );
+
+        assertEquals(GeminiApiSupport.DEFAULT_TEST_MODEL, model);
+        assertEquals(
+                "https://generativelanguage.googleapis.com/v1beta/models/" + GeminiApiSupport.DEFAULT_TEST_MODEL + ":generateContent?key=test-key",
+                GeminiApiSupport.buildGenerateContentEndpoint(
+                        "https://generativelanguage.googleapis.com",
+                        model,
+                        "test-key"
+                )
+        );
     }
 
     @Test

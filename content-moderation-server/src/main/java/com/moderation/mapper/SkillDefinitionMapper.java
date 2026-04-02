@@ -12,6 +12,7 @@ import java.util.List;
 public interface SkillDefinitionMapper {
     @Select("""
             SELECT
+              id,
               skill_id AS skillId,
               name,
               type,
@@ -28,11 +29,13 @@ public interface SkillDefinitionMapper {
               created_at AS createdAt,
               updated_at AS updatedAt
             FROM skill_definition
+            ORDER BY id ASC
             """)
     List<SkillDefinitionEntity> listAll();
 
     @Select("""
             SELECT
+              id,
               skill_id AS skillId,
               name,
               type,

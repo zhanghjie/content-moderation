@@ -66,8 +66,8 @@ public class VideoAnalysisProcessor {
 
             task.setResultJson(json);
             ParsedResult parsed = parseResultJson(json);
-            task.setModerationResult(deriveModerationResult(parsed.violations));
-            task.setOverallConfidence(deriveOverallConfidence(parsed.violations));
+            task.setModerationResult(deriveModerationResult(parsed.violations, parsed.hasViolationSignal));
+            task.setOverallConfidence(deriveOverallConfidence(parsed.violations, parsed.hasViolationSignal));
             task.setStatus(TaskStatus.COMPLETED.getCode());
             task.setCompletedAt(OffsetDateTime.now());
             videoAnalysisTaskMapper.updateById(task);
@@ -100,16 +100,17 @@ public class VideoAnalysisProcessor {
         return trimmed;
     }
 
-    private record ParsedResult(List<ViolationDTO> violations, VideoSummaryDTO summary) {}
+    private record ParsedResult(List<ViolationDTO> violations, VideoSummaryDTO summary, boolean hasViolationSignal) {}
 
     private ParsedResult parseResultJson(String json) {
         if (json == null || json.isBlank()) {
-            return new ParsedResult(new ArrayList<>(), new VideoSummaryDTO());
+            return new ParsedResult(new ArrayList<>(), new VideoSummaryDTO(), false);
         }
         try {
             JsonNode root = objectMapper.readTree(json);
             List<ViolationDTO> violations = new ArrayList<>();
             JsonNode vioNode = root.path("violations");
+            boolean hasViolationSignal = root.has("violations") && vioNode.isArray();
             if (vioNode.isArray()) {
                 for (JsonNode v : vioNode) {
                     ViolationDTO dto = new ViolationDTO();
@@ -137,10 +138,10 @@ public class VideoAnalysisProcessor {
             summary.setTotalViolations(total);
             summary.setHighConfidenceCount(high);
             summary.setPrimaryViolation(primary);
-            return new ParsedResult(violations, summary);
+            return new ParsedResult(violations, summary, hasViolationSignal);
         } catch (Exception e) {
             log.warn("Failed to parse video analysis result JSON, fallback to empty summary. error={}", e.getMessage());
-            return new ParsedResult(new ArrayList<>(), new VideoSummaryDTO());
+            return new ParsedResult(new ArrayList<>(), new VideoSummaryDTO(), false);
         }
     }
 
@@ -152,7 +153,8 @@ public class VideoAnalysisProcessor {
         return v.asInt();
     }
 
-    private String deriveModerationResult(List<ViolationDTO> violations) {
+    private String deriveModerationResult(List<ViolationDTO> violations, boolean hasViolationSignal) {
+        if (!hasViolationSignal) return null;
         List<ViolationDTO> detected = violations.stream().filter(v -> Boolean.TRUE.equals(v.getDetected())).toList();
         if (detected.isEmpty()) return ModerationResultEnum.NOT_HIT.getCode();
         boolean high = detected.stream().anyMatch(v -> v.getConfidence() != null && v.getConfidence() >= 0.9);
@@ -160,12 +162,14 @@ public class VideoAnalysisProcessor {
         return ModerationResultEnum.SUSPECTED.getCode();
     }
 
-    private Double deriveOverallConfidence(List<ViolationDTO> violations) {
+    private Double deriveOverallConfidence(List<ViolationDTO> violations, boolean hasViolationSignal) {
+        if (!hasViolationSignal) return null;
         double avg = violations.stream()
                 .filter(v -> Boolean.TRUE.equals(v.getDetected()) && v.getConfidence() != null)
                 .mapToDouble(ViolationDTO::getConfidence)
                 .average()
-                .orElse(1.0);
+                .orElse(Double.NaN);
+        if (Double.isNaN(avg)) return null;
         return Math.max(0.0, Math.min(1.0, avg));
     }
 }

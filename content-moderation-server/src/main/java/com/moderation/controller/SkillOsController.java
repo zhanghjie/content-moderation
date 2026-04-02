@@ -61,8 +61,14 @@ public class SkillOsController {
     @PutMapping("/skills/{skillId}")
     @Operation(summary = "更新 Skill")
     public BaseResult<SkillListRes> updateSkill(@PathVariable String skillId, @RequestBody SkillRegisterReq req) {
-        req.setSkillId(skillId);
-        return saveSkill(req, false);
+        try {
+            SkillDefinition existing = skillRegistry.get(skillId);
+            SkillDefinition merged = mergeSkillDefinition(existing, req);
+            skillRegistry.register(merged);
+            return BaseResult.success(SkillListRes.builder().skills(skillRegistry.list()).build());
+        } catch (IllegalArgumentException e) {
+            return BaseResult.failed(400, e.getMessage());
+        }
     }
 
     @PostMapping("/skills/{skillId}/publish")
@@ -307,5 +313,26 @@ public class SkillOsController {
         } catch (IllegalArgumentException e) {
             return BaseResult.failed(400, e.getMessage());
         }
+    }
+
+    private SkillDefinition mergeSkillDefinition(SkillDefinition existing, SkillRegisterReq req) {
+        SkillDefinition definition = new SkillDefinition();
+        definition.setSkillId(existing.getSkillId());
+        definition.setName(isBlank(req.getName()) ? existing.getName() : req.getName());
+        definition.setType(isBlank(req.getType()) ? existing.getType() : req.getType());
+        definition.setDescription(isBlank(req.getDescription()) ? existing.getDescription() : req.getDescription());
+        definition.setTags(req.getTags() == null ? existing.getTags() : req.getTags());
+        definition.setOutputSchema(req.getOutputSchema() == null ? existing.getOutputSchema() : req.getOutputSchema());
+        definition.setStateMapping(req.getStateMapping() == null ? existing.getStateMapping() : req.getStateMapping());
+        definition.setExecutionConfig(req.getExecutionConfig() == null ? existing.getExecutionConfig() : req.getExecutionConfig());
+        definition.setScriptConfig(req.getScriptConfig() == null ? existing.getScriptConfig() : req.getScriptConfig());
+        definition.setStatus(isBlank(req.getStatus()) ? existing.getStatus() : req.getStatus());
+        definition.setTimeoutMs(req.getTimeoutMs() == null ? existing.getTimeoutMs() : req.getTimeoutMs());
+        definition.setVersion(isBlank(req.getVersion()) ? existing.getVersion() : req.getVersion());
+        return definition;
+    }
+
+    private boolean isBlank(String text) {
+        return text == null || text.isBlank();
     }
 }

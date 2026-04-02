@@ -31,6 +31,8 @@ public class DefaultDynamicPolicyPlanner implements DynamicPolicyPlanner {
                 plan.setPlanType("STATIC");
             }
             ensureMeta(plan).put("dynamicPlannerApplied", false);
+            ensureMeta(plan).put("inputKinds", detectInputKinds(input));
+            ensureMeta(plan).put("videoAware", hasVideoUrl(input));
             return plan;
         }
 
@@ -38,6 +40,7 @@ public class DefaultDynamicPolicyPlanner implements DynamicPolicyPlanner {
         Map<String, Object> stepSkillMap = asMap(dynamicConfig.get("stepSkillMap"));
         List<PlannerDecision> decisions = new ArrayList<>();
         List<ExecutionPlanStep> steps = plan.getSteps() == null ? new ArrayList<>() : new ArrayList<>(plan.getSteps());
+        boolean videoAware = hasVideoUrl(input);
 
         for (int i = 0; i < steps.size(); i++) {
             ExecutionPlanStep step = steps.get(i);
@@ -101,6 +104,9 @@ public class DefaultDynamicPolicyPlanner implements DynamicPolicyPlanner {
         plan.setPlannerDecisions(decisions);
         ensureMeta(plan).put("dynamicPlannerApplied", true);
         ensureMeta(plan).put("dynamicPlannerStrategy", "CONSTRAINED_RULE_BASED");
+        ensureMeta(plan).put("videoAware", videoAware);
+        ensureMeta(plan).put("inputKinds", detectInputKinds(input));
+        ensureMeta(plan).put("runtimePlan", buildRuntimePlan(steps, videoAware));
         return plan;
     }
 
@@ -161,5 +167,89 @@ public class DefaultDynamicPolicyPlanner implements DynamicPolicyPlanner {
         snapshot.put("timeoutMs", skill.getTimeoutMs());
         snapshot.put("version", skill.getVersion());
         return snapshot;
+    }
+
+    private boolean hasVideoUrl(Map<String, Object> input) {
+        if (input == null || input.isEmpty()) {
+            return false;
+        }
+        Object videoUrl = input.get("videoUrl");
+        return videoUrl != null && !String.valueOf(videoUrl).isBlank();
+    }
+
+    private List<String> detectInputKinds(Map<String, Object> input) {
+        List<String> kinds = new ArrayList<>();
+        if (input == null || input.isEmpty()) {
+            return kinds;
+        }
+        Object videoUrl = input.get("videoUrl");
+        if (videoUrl != null && !String.valueOf(videoUrl).isBlank()) {
+            kinds.add("VIDEO");
+        }
+        Object coverUrl = input.get("coverUrl");
+        if (coverUrl != null && !String.valueOf(coverUrl).isBlank()) {
+            kinds.add("IMAGE");
+        }
+        Object transcript = input.get("transcript");
+        if (transcript != null && !String.valueOf(transcript).isBlank()) {
+            kinds.add("TEXT");
+        }
+        if (kinds.isEmpty()) {
+            kinds.add("GENERIC");
+        }
+        return kinds;
+    }
+
+    private Map<String, Object> buildRuntimePlan(List<ExecutionPlanStep> steps, boolean videoAware) {
+        Map<String, Object> runtimePlan = new LinkedHashMap<>();
+        List<Map<String, Object>> fusionGroups = new ArrayList<>();
+        List<String> stateBreakpoints = new ArrayList<>();
+        Map<String, String> traceLevel = new LinkedHashMap<>();
+        List<String> replanPoints = new ArrayList<>();
+
+        if (steps == null || steps.isEmpty()) {
+            runtimePlan.put("enabled", false);
+            runtimePlan.put("fusionGroups", fusionGroups);
+            runtimePlan.put("stateBreakpoints", stateBreakpoints);
+            runtimePlan.put("traceLevel", traceLevel);
+            runtimePlan.put("replanPoints", replanPoints);
+            return runtimePlan;
+        }
+
+        if (videoAware && steps.size() >= 2) {
+            ExecutionPlanStep first = steps.get(0);
+            ExecutionPlanStep second = steps.get(1);
+            fusionGroups.add(Map.of(
+                    "skills", List.of(first.getStepId(), second.getStepId()),
+                    "mode", "mergeable_llm_call",
+                    "reason", "video input detected, compact runtime plan prepared"
+            ));
+            traceLevel.put(first.getStepId(), "none");
+            traceLevel.put(second.getStepId(), "full");
+            stateBreakpoints.add(second.getStepId());
+            replanPoints.add(second.getStepId());
+        }
+
+        for (ExecutionPlanStep step : steps) {
+            traceLevel.putIfAbsent(step.getStepId(), videoAware ? "full" : "standard");
+            Object skillType = step.getSkillSnapshot() == null ? null : step.getSkillSnapshot().get("type");
+            String type = skillType == null ? "" : String.valueOf(skillType).trim().toUpperCase();
+            if ("SEMANTIC".equals(type) || "OUTPUT".equals(type)) {
+                if (!stateBreakpoints.contains(step.getStepId())) {
+                    stateBreakpoints.add(step.getStepId());
+                }
+                if (!replanPoints.contains(step.getStepId())) {
+                    replanPoints.add(step.getStepId());
+                }
+            }
+        }
+
+        runtimePlan.put("enabled", true);
+        runtimePlan.put("inputVideoAware", videoAware);
+        runtimePlan.put("fusionGroups", fusionGroups);
+        runtimePlan.put("stateBreakpoints", stateBreakpoints);
+        runtimePlan.put("traceLevel", traceLevel);
+        runtimePlan.put("replanPoints", replanPoints);
+        return runtimePlan;
     }
 }

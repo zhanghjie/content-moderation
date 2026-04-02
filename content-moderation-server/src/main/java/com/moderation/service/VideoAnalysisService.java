@@ -1,7 +1,9 @@
 package com.moderation.service;
 
 import com.moderation.model.req.VideoAnalyzeReq;
+import com.moderation.model.req.VideoDraftSaveReq;
 import com.moderation.model.res.VideoAnalyzeRes;
+import com.moderation.model.res.VideoDraftRes;
 import com.moderation.model.res.TaskListRes;
 
 /**
@@ -24,7 +26,13 @@ public interface VideoAnalysisService {
      */
     VideoAnalyzeRes getResult(String callId);
 
-    TaskListRes getTasks(String callId, String status, String result, Integer page, Integer pageSize);
+    VideoDraftRes saveDraft(VideoDraftSaveReq req);
+
+    VideoDraftRes getDraft(String taskId);
+
+    VideoAnalyzeRes executeDraft(String taskId);
+
+    TaskListRes getTasks(String callId, String policyId, String status, String result, Integer page, Integer pageSize);
 
     VideoAnalyzeRes reAnalyze(String callId);
 }

@@ -21,6 +21,22 @@ interface TaskListResponse {
   list: VideoAnalysisTask[]
 }
 
+export interface VideoDraftSaveReq {
+  taskId?: string
+  policyId: string
+  policyInput: Record<string, any>
+  analysisType?: string
+}
+
+export interface VideoDraftRes {
+  taskId: string
+  policyId: string
+  analysisType?: string
+  policyInput?: Record<string, any>
+  createdAt?: string
+  updatedAt?: string
+}
+
 /**
  * 视频分析 API
  */
@@ -60,6 +76,7 @@ export const videoApi = {
    */
   getList: async (params?: {
     callId?: string
+    policyId?: string
     contentId?: string
     status?: string
     result?: string
@@ -78,6 +95,21 @@ export const videoApi = {
       return mockGetPromptModules(analysisType)
     }
     const res = await request.get<any>('/v1/video/prompt-modules', { params: { analysisType } })
+    return res.data
+  },
+
+  saveDraft: async (payload: VideoDraftSaveReq): Promise<VideoDraftRes> => {
+    const res = await request.post<VideoDraftRes>('/v1/video/drafts', payload)
+    return res.data
+  },
+
+  getDraft: async (taskId: string): Promise<VideoDraftRes> => {
+    const res = await request.get<VideoDraftRes>(`/v1/video/drafts/${taskId}`)
+    return res.data
+  },
+
+  executeDraft: async (taskId: string): Promise<VideoAnalysisTask> => {
+    const res = await request.post<VideoAnalysisTask>(`/v1/video/drafts/${taskId}/execute`)
     return res.data
   }
 }

@@ -2,6 +2,7 @@ package com.moderation.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moderation.llm.GeminiApiSupport;
 import com.moderation.model.req.PromptModuleSaveReq;
 import com.moderation.model.req.PromptSplitReq;
 import com.moderation.model.res.PromptModuleManageRes;
@@ -66,7 +67,6 @@ public class PromptSplitServiceImpl implements PromptSplitService {
         RestTemplate restTemplate = createRestTemplate(profile.timeoutMs() == null ? 120000 : profile.timeoutMs());
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + profile.apiKey());
 
         String instruction = """
                 你是 Prompt 架构拆分器。请把输入 Prompt 按框架拆分成模块，并严格只输出 JSON：
@@ -83,18 +83,31 @@ public class PromptSplitServiceImpl implements PromptSplitService {
                 """.formatted(analysisType);
 
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", profile.model());
-        requestBody.put("messages", List.of(Map.of(
-                "role", "user",
-                "content", List.of(
-                        Map.of("type", "text", "text", instruction + "\n\n待拆分原始Prompt:\n" + rawPrompt)
-                )
-        )));
-        requestBody.put("max_tokens", profile.maxTokens() == null ? 3000 : profile.maxTokens());
-        String endpoint = normalizeChatCompletionsEndpoint(profile.provider(), profile.endpoint());
+        String endpoint;
+        if (GeminiApiSupport.isGeminiProvider(profile.provider())) {
+            requestBody.putAll(GeminiApiSupport.buildGenerateContentRequest(
+                    instruction + "\n\n待拆分原始Prompt:\n" + rawPrompt,
+                    null,
+                    profile.maxTokens() == null ? 3000 : profile.maxTokens()
+            ));
+            endpoint = GeminiApiSupport.buildGenerateContentEndpoint(profile.endpoint(), profile.model(), profile.apiKey());
+        } else {
+            headers.set("Authorization", "Bearer " + profile.apiKey());
+            requestBody.put("model", profile.model());
+            requestBody.put("messages", List.of(Map.of(
+                    "role", "user",
+                    "content", List.of(
+                            Map.of("type", "text", "text", instruction + "\n\n待拆分原始Prompt:\n" + rawPrompt)
+                    )
+            )));
+            requestBody.put("max_tokens", profile.maxTokens() == null ? 3000 : profile.maxTokens());
+            endpoint = normalizeChatCompletionsEndpoint(profile.provider(), profile.endpoint());
+        }
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(endpoint, new HttpEntity<>(requestBody, headers), Map.class);
-            return extractContent(response.getBody());
+            return GeminiApiSupport.isGeminiProvider(profile.provider())
+                    ? GeminiApiSupport.extractText(response.getBody())
+                    : extractContent(response.getBody());
         } catch (RestClientResponseException e) {
             String body = e.getResponseBodyAsString();
             String reason = body == null || body.isBlank() ? e.getStatusText() : body;
@@ -134,18 +147,30 @@ public class PromptSplitServiceImpl implements PromptSplitService {
     }
 
     private String normalizeChatCompletionsEndpoint(String provider, String endpoint) {
-        String normalizedEndpoint = endpoint == null ? "" : endpoint.trim();
-        if (normalizedEndpoint.endsWith("/chat/completions")) {
+        String normalizedEndpoint = GeminiApiSupport.sanitizeEndpoint(endpoint);
+        if (normalizedEndpoint.isBlank()) {
             return normalizedEndpoint;
         }
+        String noTailSlash = normalizedEndpoint.replaceAll("/+$", "");
+        if (noTailSlash.endsWith("/chat/completions")) {
+            return noTailSlash;
+        }
         String providerName = provider == null ? "" : provider.trim().toLowerCase();
-        if ("deepseek".equals(providerName) && normalizedEndpoint.matches("^https?://[^/]+/?$")) {
-            return normalizedEndpoint.replaceAll("/+$", "") + "/v1/chat/completions";
+        if ("byteplus".equals(providerName)) {
+            if (noTailSlash.matches("^https?://[^/]+$")) {
+                return noTailSlash + "/api/v3/chat/completions";
+            }
+            if (noTailSlash.endsWith("/api/v3")) {
+                return noTailSlash + "/chat/completions";
+            }
         }
-        if ("byteplus".equals(providerName) && normalizedEndpoint.matches("^https?://[^/]+/?$")) {
-            return normalizedEndpoint.replaceAll("/+$", "") + "/api/v3/chat/completions";
+        if (noTailSlash.matches("^https?://[^/]+$")) {
+            return noTailSlash + "/v1/chat/completions";
         }
-        return normalizedEndpoint;
+        if (noTailSlash.endsWith("/v1")) {
+            return noTailSlash + "/chat/completions";
+        }
+        return noTailSlash;
     }
 
     private List<PromptModuleSaveReq> parseModules(String modelContent, String analysisType) {

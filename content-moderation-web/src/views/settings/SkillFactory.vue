@@ -26,9 +26,19 @@
             {{ getTypeText(row.type) }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="110">
+        <el-table-column label="状态" width="140">
           <template #default="{ row }">
-            {{ getStatusText(row.status) }}
+            <el-switch
+              :model-value="isSkillEnabled(row.status)"
+              :loading="statusUpdatingSkillId === row.skillId"
+              :disabled="statusUpdatingSkillId === row.skillId"
+              active-color="#67C23A"
+              inactive-color="#F56C6C"
+              inline-prompt
+              active-text="开"
+              inactive-text="关"
+              @change="(enabled) => handleSkillStatusChange(row, enabled)"
+            />
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="260" show-overflow-tooltip />
@@ -73,6 +83,13 @@
           </el-select>
           <el-tag v-else type="info">未启用</el-tag>
         </el-form-item>
+        <el-form-item label="执行模式">
+          <el-select v-model="scriptExecutionMode" style="width: 100%">
+            <el-option label="LLM" value="LLM" />
+            <el-option label="ASR" value="ASR" />
+            <el-option label="PYTHON" value="PYTHON" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="大模型">
           <el-select v-model="form.llmConfigCode" style="width: 100%" placeholder="请选择模型配置" :loading="loadingModels">
             <el-option
@@ -99,9 +116,12 @@
             >
               <el-button>上传 .py 文件</el-button>
             </el-upload>
-            <el-button v-if="scriptFileName" type="link" @click="scriptPreviewVisible = true">
-              预览文件：{{ scriptFileName }}
-            </el-button>
+            <div v-if="scriptFileName || scriptContentText.trim()" class="script-file-preview-wrap">
+              <el-button type="link" @click="scriptPreviewVisible = true">
+                {{ scriptFileName ? `预览文件：${scriptFileName}` : `预览文件：${selectedSkillId || '已保存脚本'}.py` }}
+              </el-button>
+              <button class="script-file-remove-icon" type="button" @click.stop.prevent="removeScriptFile">×</button>
+            </div>
           </el-space>
         </el-form-item>
       </el-form>
@@ -114,7 +134,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="scriptPreviewVisible" :title="`脚本预览：${scriptFileName}`" width="800px">
+    <el-dialog v-model="scriptPreviewVisible" :title="`脚本预览：${scriptFileName || `${selectedSkillId || '已保存脚本'}.py`}`" width="800px">
       <el-input v-model="scriptContentText" type="textarea" :rows="20" readonly />
       <template #footer>
         <el-button @click="scriptPreviewVisible = false">关闭</el-button>
@@ -150,6 +170,7 @@ const typeOptions: Array<{ value: string; label: string }> = [
 const loading = ref(false)
 const saving = ref(false)
 const loadingModels = ref(false)
+const statusUpdatingSkillId = ref('')
 const skills = ref<SkillDefinition[]>([])
 const llmProfiles = ref<LlmProfile[]>([])
 const defaultLlmConfigCode = ref('')
@@ -160,8 +181,9 @@ const skillDialogVisible = ref(false)
 const scriptPreviewVisible = ref(false)
 const promptText = ref('')
 const outputSchemaText = ref('{}')
-const scriptContentText = ref('print("hello skill")')
+const scriptContentText = ref('')
 const scriptFileName = ref('')
+const scriptExecutionMode = ref<'LLM' | 'ASR' | 'PYTHON'>('LLM')
 const route = useRoute()
 const router = useRouter()
 
@@ -191,6 +213,32 @@ const getStatusText = (status: string) => {
   return status || '-'
 }
 
+const isSkillEnabled = (status: string) => String(status || '').toUpperCase() === 'PUBLISHED'
+
+const isPythonScriptMode = () => scriptExecutionMode.value === 'PYTHON'
+const isAsrScriptMode = () => scriptExecutionMode.value === 'ASR'
+
+const handleSkillStatusChange = async (row: SkillDefinition, enabled: boolean) => {
+  const nextStatus = enabled ? 'PUBLISHED' : 'DRAFT'
+  const previousStatus = row.status
+  if (String(previousStatus || '').toUpperCase() === nextStatus) {
+    return
+  }
+
+  statusUpdatingSkillId.value = row.skillId
+  row.status = nextStatus
+
+  try {
+    await skillOsApi.updateSkill(row.skillId, { status: nextStatus })
+    ElMessage.success(`${row.name || row.skillId} 已${enabled ? '开启' : '关闭'}`)
+  } catch (error: any) {
+    row.status = previousStatus
+    ElMessage.error(error?.message || '状态更新失败')
+  } finally {
+    statusUpdatingSkillId.value = ''
+  }
+}
+
 const normalizeJsonText = (text: string) => {
   const trimmed = String(text || '').trim()
   if (!trimmed) return '{}'
@@ -216,7 +264,7 @@ const loadSkills = async () => {
   loading.value = true
   try {
     const res = await skillOsApi.listSkills()
-    skills.value = (res.skills || []).slice().sort((a, b) => b.skillId.localeCompare(a.skillId))
+    skills.value = (res.skills || []).slice()
     const maxPage = Math.max(1, Math.ceil(skills.value.length / pageSize.value))
     if (currentPage.value > maxPage) {
       currentPage.value = maxPage
@@ -261,16 +309,12 @@ const saveSkillInternal = async (mode: 'register' | 'draft') => {
     ElMessage.warning('请选择技能类型')
     return
   }
-  if (!promptText.value.trim()) {
+  if (!isPythonScriptMode() && !isAsrScriptMode() && !promptText.value.trim()) {
     ElMessage.warning('请输入 Prompt')
     return
   }
-  if (!scriptContentText.value.trim()) {
-    ElMessage.warning('请上传脚本文件')
-    return
-  }
-  if (!form.value.llmConfigCode) {
-    ElMessage.warning('请选择大模型')
+  if ((isAsrScriptMode() || !isPythonScriptMode()) && !form.value.llmConfigCode) {
+    ElMessage.warning(isAsrScriptMode() ? '请选择 ASR 配置' : '请选择大模型')
     return
   }
 
@@ -281,6 +325,7 @@ const saveSkillInternal = async (mode: 'register' | 'draft') => {
     const skillId = selectedSkillId.value || generatedId
     const isEdit = !!selectedSkillId.value
     const selectedProfile = llmProfiles.value.find(item => item.configCode === form.value.llmConfigCode)
+    const executionMode = isPythonScriptMode() ? 'PYTHON' : isAsrScriptMode() ? 'ASR' : 'LLM'
     const payload = {
       skillId,
       name: form.value.name.trim(),
@@ -292,14 +337,27 @@ const saveSkillInternal = async (mode: 'register' | 'draft') => {
       timeoutMs: 3000,
       outputSchema,
       stateMapping: {},
-      executionConfig: {
-        execution_mode: 'LLM',
-        timeout: 3000,
-        llm_config_code: form.value.llmConfigCode,
-        llm_model: selectedProfile?.model || ''
-      },
+      executionConfig: isPythonScriptMode()
+        ? {
+            execution_mode: executionMode,
+            timeout: 3000
+          }
+        : isAsrScriptMode()
+        ? {
+            execution_mode: executionMode,
+            timeout: 3000,
+            asr_config_code: form.value.llmConfigCode
+          }
+        : {
+            execution_mode: executionMode,
+            timeout: 3000,
+            llm_config_code: form.value.llmConfigCode,
+            llm_model: selectedProfile?.model || ''
+          },
       scriptConfig: {
-        language: 'python',
+        language: isPythonScriptMode() ? 'python' : isAsrScriptMode() ? 'asr' : 'javascript',
+        fileName: scriptFileName.value.trim(),
+        entry: 'main',
         prompt: promptText.value.trim(),
         content: scriptContentText.value,
         env: {}
@@ -323,8 +381,8 @@ const saveSkillInternal = async (mode: 'register' | 'draft') => {
     }
     selectedSkillId.value = skillId
     ElMessage.success(mode === 'draft' ? '草稿保存成功' : `${isEdit ? '技能修改成功' : '技能创建成功'}：${skillId}`)
+    await loadSkills()
     if (mode === 'register') {
-      await loadSkills()
       skillDialogVisible.value = false
       resetForm()
     }
@@ -337,6 +395,7 @@ const saveSkillInternal = async (mode: 'register' | 'draft') => {
 
 const resetForm = () => {
   selectedSkillId.value = ''
+  scriptExecutionMode.value = 'LLM'
   form.value = {
     name: '',
     description: '',
@@ -346,7 +405,7 @@ const resetForm = () => {
   }
   outputSchemaText.value = '{}'
   promptText.value = ''
-  scriptContentText.value = 'print("hello skill")'
+  scriptContentText.value = ''
   scriptFileName.value = ''
 }
 
@@ -357,17 +416,23 @@ const openCreateDialog = () => {
 
 const openEditDialog = (row: SkillDefinition) => {
   selectedSkillId.value = row.skillId
+  const executionMode = String((row.executionConfig as any)?.execution_mode || '').toUpperCase()
+  scriptExecutionMode.value = executionMode === 'PYTHON' || executionMode === 'PY' || executionMode === 'PY_SCRIPT'
+    ? 'PYTHON'
+    : executionMode === 'ASR'
+    ? 'ASR'
+    : 'LLM'
   form.value = {
     name: row.name || '',
     description: row.description || '',
     type: row.type || '',
     status: String(row.status || 'DRAFT'),
-    llmConfigCode: String((row.executionConfig as any)?.llm_config_code || defaultLlmConfigCode.value || llmProfiles.value[0]?.configCode || '')
+    llmConfigCode: String((row.executionConfig as any)?.llm_config_code || (row.executionConfig as any)?.asr_config_code || defaultLlmConfigCode.value || llmProfiles.value[0]?.configCode || '')
   }
   outputSchemaText.value = JSON.stringify(row.outputSchema || {}, null, 2)
   promptText.value = String(row.scriptConfig?.prompt || '')
-  scriptContentText.value = String(row.scriptConfig?.content || 'print("hello skill")')
-  scriptFileName.value = ''
+  scriptContentText.value = String(row.scriptConfig?.content || '')
+  scriptFileName.value = String(row.scriptConfig?.fileName || row.scriptConfig?.scriptFileName || '')
   skillDialogVisible.value = true
 }
 
@@ -389,7 +454,7 @@ const deleteSkill = async (skillId: string) => {
   try {
     await ElMessageBox.confirm(`确认物理删除技能 ${skillId} 吗？删除后不可恢复。`, '物理删除确认', { type: 'warning' })
     const res = await skillOsApi.deleteSkill(skillId)
-    skills.value = (res.skills || []).slice().sort((a, b) => a.skillId.localeCompare(b.skillId))
+    skills.value = (res.skills || []).slice()
     const maxPage = Math.max(1, Math.ceil(skills.value.length / pageSize.value))
     if (currentPage.value > maxPage) {
       currentPage.value = maxPage
@@ -429,6 +494,13 @@ const onScriptFileChange = async (file: UploadFile) => {
   } catch (error: any) {
     ElMessage.error(error?.message || '脚本文件读取失败')
   }
+}
+
+const removeScriptFile = () => {
+  scriptFileName.value = ''
+  scriptContentText.value = ''
+  scriptPreviewVisible.value = false
+  ElMessage.success('脚本文件已删除')
 }
 
 onMounted(async () => {
@@ -471,6 +543,34 @@ watch(skillDialogVisible, visible => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.script-file-preview-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.script-file-remove-icon {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: #f56c6c;
+  color: #fff;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.script-file-remove-icon:hover {
+  background: #f78989;
 }
 
 .title {

@@ -57,6 +57,8 @@ public class VideoAnalyzeRes {
 
     private OffsetDateTime createdAt;
 
+    private OffsetDateTime updatedAt;
+
     private OffsetDateTime completedAt;
 
     private String errorMessage;

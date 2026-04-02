@@ -8,11 +8,15 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
 public class PromptComposer {
+    private static final Pattern VARIABLE_PATTERN = Pattern.compile("(?:\\{\\{|#\\{)\\s*([^}]+?)\\s*(?:\\}\\}|\\})");
+
 
     private static final String BASE_RULES = String.join("\n",
             "## 基础规则（Base Rules）",
@@ -74,13 +78,18 @@ public class PromptComposer {
 
     private String applyVariables(String content, Map<String, String> variables) {
         if (variables == null || variables.isEmpty()) return content;
-        String result = content;
-        for (Map.Entry<String, String> entry : variables.entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue() == null ? "" : entry.getValue();
-            result = result.replace("{{" + key + "}}", value);
+        Matcher matcher = VARIABLE_PATTERN.matcher(content);
+        StringBuilder result = new StringBuilder();
+        int cursor = 0;
+        while (matcher.find()) {
+            result.append(content, cursor, matcher.start());
+            String key = matcher.group(1).trim();
+            String value = variables.getOrDefault(key, variables.getOrDefault(key.toUpperCase(), variables.getOrDefault(key.toLowerCase(), "")));
+            result.append(value == null ? "" : value);
+            cursor = matcher.end();
         }
-        return result;
+        result.append(content.substring(cursor));
+        return result.toString();
     }
 
     public record ComposedPrompt(List<String> modules, String prompt) {}

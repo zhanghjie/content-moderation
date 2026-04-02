@@ -7,7 +7,7 @@ export interface VideoAnalysisTask {
   coverUrl?: string
   analysisType?: 'STANDARD' | 'HOST_VIOLATION'
   userId?: number
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+  status: 'DRAFT' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
   moderationResult?: 'NOT_HIT' | 'HIT' | 'SUSPECTED'
   overallConfidence?: number
   promptModules?: string
@@ -54,6 +54,7 @@ export interface VideoAnalyzeReq {
 
 // 任务状态选项
 export const TASK_STATUS_OPTIONS = [
+  { label: '草稿', value: 'DRAFT' },
   { label: '待处理', value: 'PENDING' },
   { label: '处理中', value: 'PROCESSING' },
   { label: '已完成', value: 'COMPLETED' },

@@ -3,8 +3,8 @@
     <el-card shadow="never" class="header-card">
       <div class="header-row">
         <div>
-          <h2 class="title">Policy 执行链路说明</h2>
-          <p class="subtitle">展示你点击执行 Policy 之后，系统真实经历的类、方法和中文职责说明</p>
+          <h2 class="title">最近一次 Policy 执行日志</h2>
+          <p class="subtitle">按最近一次执行记录或指定 Execution ID 展示执行过程、节点结果和最终状态</p>
         </div>
         <el-space>
           <el-button @click="backToPolicies">返回 Policy 列表</el-button>
@@ -59,7 +59,7 @@
             type="info"
             :closable="false"
             show-icon
-            title="请先选择一个 Policy，页面会自动读取最近一次执行结果"
+            title="请先选择一个 Policy，页面会自动读取最近一次执行日志"
             style="margin-top: 14px"
           />
         </el-card>
@@ -75,21 +75,21 @@
               {{ executionResult ? (executionResult.success ? 'SUCCESS' : 'FAILED') : '-' }}
             </el-tag>
           </div>
-          <div class="metric-hint">前端最终看到的执行结果状态</div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :md="6">
-        <el-card shadow="never" class="metric-card">
-          <div class="metric-label">Plan 类型</div>
-          <div class="metric-value mono">{{ planTypeLabel }}</div>
-          <div class="metric-hint">STATIC / DYNAMIC / REPLAN</div>
+          <div class="metric-hint">最近一次执行结果状态</div>
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :md="6">
         <el-card shadow="never" class="metric-card">
           <div class="metric-label">执行节点数</div>
-          <div class="metric-value mono">{{ executionResult?.traces?.length || 0 }}</div>
-          <div class="metric-hint">DefaultPlanExecutor 逐个执行的 Trace 数量</div>
+          <div class="metric-value mono">{{ traceStats.total }}</div>
+          <div class="metric-hint">本次记录到的 Trace 数量</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :md="6">
+        <el-card shadow="never" class="metric-card">
+          <div class="metric-label">最终结果</div>
+          <div class="metric-value mono ellipsis">{{ finalResultPreview }}</div>
+          <div class="metric-hint">state.finalResult / step 输出聚合结果</div>
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :md="6">
@@ -101,80 +101,47 @@
       </el-col>
     </el-row>
 
-    <el-card shadow="never" class="panel-card">
-      <template #header>
-        <div class="panel-header">
-          <span>真实经历过的类与方法</span>
-          <el-tag v-if="executionResult?.executionId" effect="plain">Execution {{ executionResult.executionId }}</el-tag>
-        </div>
-      </template>
-
-      <el-timeline>
-        <el-timeline-item
-          v-for="stage in journeyStages"
-          :key="stage.key"
-          :type="stage.happened ? 'success' : 'info'"
-          :timestamp="stage.methodName"
-          placement="top"
-        >
-          <div class="stage-card" :class="{ active: stage.happened }">
-            <div class="stage-head">
-              <div>
-                <div class="stage-class">{{ stage.className }}</div>
-                <div class="stage-title">{{ stage.title }}</div>
-              </div>
-              <el-tag :type="stage.happened ? 'success' : 'info'" effect="plain">
-                {{ stage.happened ? '本次发生' : '本次未触发' }}
-              </el-tag>
-            </div>
-            <div class="stage-desc">{{ stage.description }}</div>
-            <div v-if="stage.evidence.length" class="stage-evidence">
-              <div class="stage-evidence-title">本次证据</div>
-              <div class="stage-evidence-list">
-                <span v-for="item in stage.evidence" :key="item" class="evidence-chip">{{ item }}</span>
-              </div>
-            </div>
-          </div>
-        </el-timeline-item>
-      </el-timeline>
-    </el-card>
-
     <el-row :gutter="16">
       <el-col :xs="24" :lg="14">
         <el-card shadow="never" class="panel-card">
           <template #header>
             <div class="panel-header">
-              <span>执行顺序与轨迹</span>
+              <span>执行过程解析</span>
               <el-tag effect="plain">按真实 Trace 展示</el-tag>
             </div>
           </template>
 
-          <div v-if="planSteps.length" class="step-list">
-            <div v-for="step in planSteps" :key="step.stepId" class="step-card">
+          <div v-if="traceRows.length" class="step-list">
+            <div v-for="trace in traceRows" :key="trace.traceId || `${trace.stepId}-${trace.skillId}`" class="step-card" :class="{ selected: selectedTrace?.traceId === trace.traceId }" @click="onTraceRowClick(trace)">
               <div class="step-top">
                 <div>
-                  <div class="step-name">{{ step.skillSnapshot?.name || step.skillId }}</div>
-                  <div class="step-sub">{{ step.skillId }} · {{ step.skillSnapshot?.version || 'v1' }}</div>
+                  <div class="step-name">{{ trace.stepName }}</div>
+                  <div class="step-sub">{{ trace.stepId || '-' }} · {{ trace.skillId }}</div>
                 </div>
-                <el-tag size="small" effect="plain">Step {{ step.stepOrder }}</el-tag>
+                <el-space>
+                  <el-tag size="small" effect="plain">Step {{ trace.stepOrder }}</el-tag>
+                  <el-tag size="small" :type="trace.skipped ? 'info' : trace.success ? 'success' : 'danger'">
+                    {{ trace.skipped ? 'SKIPPED' : trace.success ? 'SUCCESS' : 'FAILED' }}
+                  </el-tag>
+                </el-space>
               </div>
               <div class="step-body">
                 <div class="mini-block">
-                  <div class="mini-title">对应类</div>
-                  <div class="mono">DefaultPlanExecutor</div>
+                  <div class="mini-title">执行状态</div>
+                  <div>{{ trace.status || '-' }}</div>
                 </div>
                 <div class="mini-block">
-                  <div class="mini-title">执行结果</div>
-                  <div>{{ getTraceByStepId(step.stepId)?.status || '未找到 Trace' }}</div>
+                  <div class="mini-title">耗时</div>
+                  <div>{{ trace.durationMs }} ms</div>
                 </div>
                 <div class="mini-block full">
-                  <div class="mini-title">输出 / State</div>
-                  <pre class="json-view">{{ formatJson(getTraceByStepId(step.stepId)?.output || executionResult?.state?.[step.skillId] || null) }}</pre>
+                  <div class="mini-title">输出摘要</div>
+                  <pre class="json-view">{{ formatJson(trace.output) }}</pre>
                 </div>
               </div>
             </div>
           </div>
-          <el-empty v-else description="暂无执行步骤" :image-size="88" />
+          <el-empty v-else description="暂无执行记录" :image-size="88" />
         </el-card>
       </el-col>
 
@@ -182,7 +149,7 @@
         <el-card shadow="never" class="panel-card">
           <template #header>
             <div class="panel-header">
-              <span>本次执行摘要</span>
+              <span>执行结果摘要</span>
               <el-tag v-if="executionResult?.success" type="success" effect="plain">已完成</el-tag>
             </div>
           </template>
@@ -191,46 +158,46 @@
             <el-descriptions-item label="Policy ID">{{ executionResult?.policyId || selectedPolicyId || '-' }}</el-descriptions-item>
             <el-descriptions-item label="Plan ID">{{ executionResult?.planId || '-' }}</el-descriptions-item>
             <el-descriptions-item label="Execution ID">{{ executionResult?.executionId || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="Trace 数量">{{ traceStats.total }}</el-descriptions-item>
             <el-descriptions-item label="耗时">{{ executionResult ? `${executionResult.durationMs} ms` : '-' }}</el-descriptions-item>
             <el-descriptions-item label="最终结果">
               <span class="mono">{{ finalResultPreview }}</span>
             </el-descriptions-item>
+            <el-descriptions-item label="错误信息">
+              <span class="mono">{{ executionResult?.errorMessage || '-' }}</span>
+            </el-descriptions-item>
           </el-descriptions>
 
           <div class="raw-box">
-            <div class="raw-title">Planner 决策记录</div>
-            <div v-if="plannerDecisions.length" class="decision-list">
-              <div v-for="(decision, index) in plannerDecisions" :key="`${decision.type}-${index}`" class="decision-item">
-                <div class="decision-head">
-                  <span class="decision-type">{{ decision.type }}</span>
-                  <span class="decision-step">{{ decision.stepId || '全局' }}</span>
-                </div>
-                <div class="decision-desc">{{ decision.reason || '无说明' }}</div>
+            <div class="raw-title">解析要点</div>
+            <div v-if="resultNotes.length" class="decision-list">
+              <div v-for="note in resultNotes" :key="note" class="decision-item">
+                <div class="decision-desc">{{ note }}</div>
               </div>
             </div>
-            <el-empty v-else description="暂无 planner 决策" :image-size="72" />
+            <el-empty v-else description="暂无解析要点" :image-size="72" />
           </div>
         </el-card>
 
         <el-card shadow="never" class="panel-card" style="margin-top: 16px">
           <template #header>
             <div class="panel-header">
-              <span>持久化与反馈</span>
-              <el-tag effect="plain">PolicyExecutionMapper / StepMapper / FeedbackMapper</el-tag>
+              <span>最近一次状态快照</span>
+              <el-tag effect="plain">state / plan / traces</el-tag>
             </div>
           </template>
           <div class="persistence-list">
             <div class="persistence-item">
-              <div class="persistence-class">PolicyExecutionMapper</div>
-              <div class="persistence-desc">保存执行头信息、Plan 快照和全量 State，便于后续回放与查询。</div>
+              <div class="persistence-class">Final Result</div>
+              <div class="persistence-desc">{{ finalResultPreview }}</div>
             </div>
             <div class="persistence-item">
-              <div class="persistence-class">PolicyExecutionStepMapper</div>
-              <div class="persistence-desc">保存每一步 Trace，记录输入、输出、状态和错误信息。</div>
+              <div class="persistence-class">State Keys</div>
+              <div class="persistence-desc">{{ stateKeys.join(', ') || '-' }}</div>
             </div>
             <div class="persistence-item">
-              <div class="persistence-class">PolicyExecutionFeedbackMapper</div>
-              <div class="persistence-desc">保存自动反馈或人工反馈，用于后续质量评估。</div>
+              <div class="persistence-class">Trace 摘要</div>
+              <div class="persistence-desc">成功 {{ traceStats.success }} / 失败 {{ traceStats.failed }} / 跳过 {{ traceStats.skipped }}</div>
             </div>
           </div>
         </el-card>
@@ -265,14 +232,19 @@ import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { skillOsApi, type PolicyDefinition, type PolicyExecuteRes } from '@/api/skillos'
 
-interface JourneyStage {
-  key: string
-  className: string
-  methodName: string
-  title: string
-  description: string
-  happened: boolean
-  evidence: string[]
+interface TraceRow {
+  traceId?: string
+  stepId?: string
+  stepOrder: number
+  stepName: string
+  skillId: string
+  status?: string
+  success: boolean
+  skipped: boolean
+  durationMs: number
+  input?: any
+  output?: any
+  message?: string
 }
 
 const route = useRoute()
@@ -284,103 +256,57 @@ const selectedPolicyId = ref('')
 const executionIdInput = ref('')
 const executionResult = ref<PolicyExecuteRes | null>(null)
 const activeTab = ref<'plan' | 'state' | 'traces'>('plan')
+const selectedTraceIndex = ref(0)
 
 const selectedPolicy = computed(() => policies.value.find(item => item.policyId === selectedPolicyId.value) || null)
 const executionPlan = computed<any | null>(() => executionResult.value?.plan || null)
 const planSteps = computed<any[]>(() => executionPlan.value?.steps || [])
-const plannerDecisions = computed<any[]>(() => executionPlan.value?.plannerDecisions || [])
+const traceRows = computed<TraceRow[]>(() => {
+  const traces = executionResult.value?.traces || []
+  const stepMap = new Map<string, any>()
+  planSteps.value.forEach((step: any, index: number) => {
+    if (step?.stepId) {
+      stepMap.set(step.stepId, { ...step, stepOrder: step.stepOrder ?? index + 1 })
+    }
+  })
+  return traces.map((trace: any, index: number) => {
+    const matchedStep = trace?.stepId ? stepMap.get(trace.stepId) : null
+    return {
+      ...trace,
+      stepOrder: matchedStep?.stepOrder ?? index + 1,
+      stepName: matchedStep?.skillSnapshot?.name || trace?.skillId || `Step ${index + 1}`
+    }
+  })
+})
+const selectedTrace = computed<TraceRow | null>(() => traceRows.value[selectedTraceIndex.value] || traceRows.value[0] || null)
 const stateKeys = computed(() => Object.keys(executionResult.value?.state || {}))
 const planTypeLabel = computed(() => String(executionPlan.value?.planType || 'UNKNOWN'))
+const traceStats = computed(() => {
+  const traces = traceRows.value
+  return {
+    total: traces.length,
+    success: traces.filter(item => item.success).length,
+    failed: traces.filter(item => !item.success && !item.skipped).length,
+    skipped: traces.filter(item => item.skipped).length
+  }
+})
 const finalResultPreview = computed(() => {
   const state = executionResult.value?.state || {}
   const value = state.finalResult ?? state.result ?? state.analysis ?? state.decision ?? state.summary ?? null
   return value === null || value === undefined ? '-' : typeof value === 'string' ? value : JSON.stringify(value)
 })
 
-const journeyStages = computed<JourneyStage[]>(() => {
+const resultNotes = computed(() => {
+  const notes: string[] = []
   const result = executionResult.value
-  const plan = executionPlan.value || {}
-  const traces = result?.traces || []
-  const planType = String(plan?.planType || '')
-  const hasPlan = Boolean(plan && Object.keys(plan).length)
-  const hasState = Boolean(result?.state && Object.keys(result.state).length)
-  const hasReplan = planType === 'REPLAN'
-  const hasDynamic = planType === 'DYNAMIC' || hasReplan
-
-  return [
-    {
-      key: 'engine',
-      className: 'PolicyExecutionEngine',
-      methodName: 'execute(policyId, input)',
-      title: '执行入口',
-      description: '读取 Policy、整理输入、调用 Planner 生成计划，再交给 Executor 执行，最后持久化并返回前端结果。',
-      happened: Boolean(result),
-      evidence: result?.executionId ? [`executionId=${result.executionId}`] : []
-    },
-    {
-      key: 'planner',
-      className: 'DefaultPolicyPlanner',
-      methodName: 'plan(policy, input)',
-      title: '规划门面',
-      description: '作为三层规划的统一入口，先走静态编译，再走受限动态补全，输出最终 ExecutionPlan。',
-      happened: hasPlan,
-      evidence: hasPlan ? [`planId=${plan.planId || '-'}`, `planType=${planType || '-'}`] : []
-    },
-    {
-      key: 'static',
-      className: 'DefaultStaticPolicyPlanner',
-      methodName: 'plan(policy, input)',
-      title: '静态编译层',
-      description: '把 PolicyDefinition 里的 skillPipeline 编译成基础 ExecutionPlan，明确每个步骤、依赖和技能快照。',
-      happened: hasPlan,
-      evidence: plan?.steps?.length ? [`steps=${plan.steps.length}`] : []
-    },
-    {
-      key: 'dynamic',
-      className: 'DefaultDynamicPolicyPlanner',
-      methodName: 'refine(plan, policy, input)',
-      title: '受限动态补全层',
-      description: '在不破坏核心结构的前提下，依据配置和候选技能对计划做约束内调整。',
-      happened: hasDynamic,
-      evidence: plannerDecisions.value.length ? [`plannerDecisions=${plannerDecisions.value.length}`] : (hasDynamic ? [`planType=${planType}`] : [])
-    },
-    {
-      key: 'executor',
-      className: 'DefaultPlanExecutor',
-      methodName: 'execute(plan, policy, input)',
-      title: '技能执行层',
-      description: '逐步执行每个 Skill，收集 Trace，并把输出写入 ExecutionState，同时补充 finalResult。',
-      happened: traces.length > 0,
-      evidence: traces.length ? [`traces=${traces.length}`] : []
-    },
-    {
-      key: 'replanner',
-      className: 'DefaultReplanner',
-      methodName: 'replan(plan, policy, input, state, failedStep, failedResult)',
-      title: '运行时重规划层',
-      description: '当首次执行失败时，根据失败步骤和失败结果生成新计划，再执行一次。',
-      happened: hasReplan,
-      evidence: hasReplan ? [`planType=REPLAN`, `steps=${plan?.steps?.length || 0}`] : ['本次未触发重规划']
-    },
-    {
-      key: 'persistence',
-      className: 'PolicyExecutionMapper / PolicyExecutionStepMapper / PolicyExecutionFeedbackMapper',
-      methodName: 'insert(...)',
-      title: '结果落库层',
-      description: '把执行头、每一步 Trace 和自动反馈写入数据库，支持回放、列表和质量分析。',
-      happened: Boolean(result?.executionId),
-      evidence: result?.executionId ? [`executionId=${result.executionId}`, `stateKeys=${stateKeys.value.length}`] : []
-    },
-    {
-      key: 'response',
-      className: 'PolicyExecuteRes',
-      methodName: 'builder() / return result',
-      title: '前端消费对象',
-      description: '最终返回给页面的结果对象，前端主要从 state、traces、plan 中取展示数据。',
-      happened: Boolean(result),
-      evidence: hasState ? [`stateKeys=${stateKeys.value.length}`] : []
-    }
-  ]
+  if (!result) return notes
+  notes.push(`执行 ${result.success ? '成功' : '失败'}，总耗时 ${result.durationMs} ms`)
+  notes.push(`Trace 共 ${traceStats.value.total} 条，其中成功 ${traceStats.value.success} 条、失败 ${traceStats.value.failed} 条、跳过 ${traceStats.value.skipped} 条`)
+  if (result.executionId) notes.push(`Execution ID: ${result.executionId}`)
+  if (result.planId) notes.push(`Plan ID: ${result.planId}`)
+  if (stateKeys.value.length) notes.push(`State 关键字段：${stateKeys.value.join(', ')}`)
+  if (result.errorMessage) notes.push(`错误信息：${result.errorMessage}`)
+  return notes
 })
 
 async function loadPolicies() {
@@ -395,6 +321,13 @@ async function loadPolicies() {
     ElMessage.error(error?.message || '加载 Policy 列表失败')
   } finally {
     loadingPolicies.value = false
+  }
+}
+
+function onTraceRowClick(trace: TraceRow) {
+  const index = traceRows.value.findIndex(item => item.traceId === trace.traceId && item.stepId === trace.stepId)
+  if (index >= 0) {
+    selectedTraceIndex.value = index
   }
 }
 
@@ -442,10 +375,6 @@ async function loadExecutionDetail() {
   }
 }
 
-function getTraceByStepId(stepId: string) {
-  return (executionResult.value?.traces || []).find(trace => trace?.stepId === stepId) || null
-}
-
 function formatJson(value: any) {
   try {
     return JSON.stringify(value ?? {}, null, 2)
@@ -468,6 +397,13 @@ watch(
     if (!selectedPolicyId.value) return
     executionIdInput.value = ''
     await loadExecution()
+  }
+)
+
+watch(
+  () => executionResult.value,
+  () => {
+    selectedTraceIndex.value = 0
   }
 )
 
@@ -554,6 +490,12 @@ onMounted(async () => {
   justify-content: space-between;
 }
 
+.ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .metric-value {
   font-size: 24px;
   color: #0f172a;
@@ -635,6 +577,12 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 14px 16px;
   background: #fff;
+  cursor: pointer;
+}
+
+.step-card.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.08);
 }
 
 .step-name {

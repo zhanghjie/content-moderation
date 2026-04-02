@@ -167,13 +167,20 @@ start_all() {
     stop_all
     sleep 1
     
-    # 启动后端
+    # 启动后端（使用 dev 环境）
     print_info "正在启动后端服务..."
     if [ -f "$BACKEND_SCRIPT" ]; then
-        bash "$BACKEND_SCRIPT" start
+        bash "$BACKEND_SCRIPT" start dev
     else
         print_error "后端启动脚本不存在：$BACKEND_SCRIPT"
         exit 1
+    fi
+    
+    # 后端已经在 start.sh 中等待启动完成，这里只需检查
+    if curl -s http://localhost:9891/actuator/health > /dev/null 2>&1; then
+        print_info "后端服务已就绪"
+    else
+        print_warning "后端服务可能还在启动中，请查看日志"
     fi
     
     echo ""
@@ -185,6 +192,21 @@ start_all() {
     else
         print_error "前端启动脚本不存在：$FRONTEND_SCRIPT"
         exit 1
+    fi
+    
+    # 等待前端启动完成（最多等待 15 秒）
+    print_info "等待前端服务就绪..."
+    wait_count=0
+    while [ $wait_count -lt 15 ]; do
+        if curl -s http://localhost:3000 > /dev/null 2>&1; then
+            print_info "前端服务已就绪"
+            break
+        fi
+        sleep 1
+        wait_count=$((wait_count + 1))
+    done
+    if [ $wait_count -eq 15 ]; then
+        print_warning "前端服务启动超时"
     fi
     
     echo ""
@@ -201,13 +223,9 @@ start_all() {
     echo "  - 后端日志：bash $0 logs-backend"
     echo "  - 前端日志：bash $0 logs-frontend"
     echo ""
+    echo "停止服务：bash $0 stop"
 
-    if [ -f "$BACKEND_DIR/logs/server.log" ]; then
-        print_info "开始在当前终端输出后端日志（Ctrl+C 可停止跟随）..."
-        tail -f "$BACKEND_DIR/logs/server.log"
-    else
-        print_warning "后端日志文件不存在，跳过日志跟随：$BACKEND_DIR/logs/server.log"
-    fi
+    tail -f "$BACKEND_DIR/logs/server.log"
 }
 
 # 函数：停止所有服务
@@ -217,28 +235,32 @@ stop_all() {
     # 停止前端
     print_info "正在停止前端服务..."
     if [ -f "$FRONTEND_SCRIPT" ]; then
-        bash "$FRONTEND_SCRIPT" stop
+        bash "$FRONTEND_SCRIPT" stop || true
     fi
     if [ -f "$FRONTEND_DIR/.frontend.pid" ]; then
         FRONT_PID=$(cat "$FRONTEND_DIR/.frontend.pid" 2>/dev/null || true)
-        kill_tree "$FRONT_PID" "frontend(pidfile)" 8
+        if [ -n "$FRONT_PID" ]; then
+            kill_tree "$FRONT_PID" "frontend(pidfile)" 8 || true
+        fi
         rm -f "$FRONTEND_DIR/.frontend.pid" 2>/dev/null || true
     fi
-    kill_by_port 3000 "frontend"
-    wait_port_free 3000 "frontend" 10
+    kill_by_port 3000 "frontend" || true
+    wait_port_free 3000 "frontend" 10 || true
     
     # 停止后端
     print_info "正在停止后端服务..."
     if [ -f "$BACKEND_SCRIPT" ]; then
-        bash "$BACKEND_SCRIPT" stop
+        bash "$BACKEND_SCRIPT" stop || true
     fi
     if [ -f "$BACKEND_DIR/.server.pid" ]; then
         BACK_PID=$(cat "$BACKEND_DIR/.server.pid" 2>/dev/null || true)
-        kill_tree "$BACK_PID" "backend(pidfile)" 8
+        if [ -n "$BACK_PID" ]; then
+            kill_tree "$BACK_PID" "backend(pidfile)" 8 || true
+        fi
         rm -f "$BACKEND_DIR/.server.pid" 2>/dev/null || true
     fi
-    kill_by_port 9891 "backend"
-    wait_port_free 9891 "backend" 10
+    kill_by_port 9891 "backend" || true
+    wait_port_free 9891 "backend" 10 || true
     
     print_info "所有服务已停止"
 }

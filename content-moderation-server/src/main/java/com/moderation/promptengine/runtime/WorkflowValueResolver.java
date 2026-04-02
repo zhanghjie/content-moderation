@@ -1,5 +1,7 @@
 package com.moderation.promptengine.runtime;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -7,8 +9,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowValueResolver {
-    private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\{\\{\\s*([^}]+?)\\s*}}");
+    private static final Pattern VARIABLE_PATTERN = Pattern.compile("(?:\\{\\{|#\\{)\\s*([^}]+?)\\s*(?:\\}\\}|\\})");
+
+    private final ObjectMapper objectMapper;
 
     public Object resolveTemplateValue(String template, WorkflowRuntimeContext runtimeContext) {
         if (template == null) return null;
@@ -21,7 +26,7 @@ public class WorkflowValueResolver {
         while (matcher.find()) {
             result.append(template, cursor, matcher.start());
             Object value = resolveExpression(matcher.group(1), runtimeContext);
-            result.append(value == null ? "" : value);
+            result.append(stringify(value));
             cursor = matcher.end();
         }
         result.append(template.substring(cursor));
@@ -37,6 +42,14 @@ public class WorkflowValueResolver {
             String nodeId = expr.substring(0, expr.length() - ".output".length());
             Map<String, Object> node = runtimeContext.getNodes().get(nodeId);
             return node == null ? null : node.get("output");
+        }
+        int outputDotIndex = expr.indexOf('.');
+        if (outputDotIndex > 0) {
+            String outputKey = expr.substring(0, outputDotIndex);
+            if (runtimeContext.getOutputs().containsKey(outputKey)) {
+                Object value = runtimeContext.getOutputs().get(outputKey);
+                return pickByPath(value, expr.substring(outputDotIndex + 1));
+            }
         }
         if (runtimeContext.getOutputs().containsKey(expr)) return runtimeContext.getOutputs().get(expr);
         if (runtimeContext.getContext().containsKey(expr)) return runtimeContext.getContext().get(expr);
@@ -103,7 +116,7 @@ public class WorkflowValueResolver {
         };
     }
 
-    private Object pickByPath(Map<String, Object> source, String path) {
+    private Object pickByPath(Object source, String path) {
         if (source == null || path == null || path.isBlank()) return null;
         String[] parts = path.split("\\.");
         Object current = source;
@@ -112,5 +125,22 @@ public class WorkflowValueResolver {
             current = map.get(part);
         }
         return current;
+    }
+
+    private String stringify(Object value) {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof String str) {
+            return str;
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return String.valueOf(value);
+        }
     }
 }

@@ -19,7 +19,6 @@ import com.moderation.skillos.model.SkillResult;
 import com.moderation.skillos.model.SkillExecutionTrace;
 import com.moderation.skillos.planner.PolicyPlanner;
 import com.moderation.skillos.planner.Replanner;
-import com.moderation.skillos.planner.PlannerDecision;
 import com.moderation.skillos.registry.PolicyRegistry;
 import com.moderation.skillos.registry.SkillRegistry;
 import lombok.RequiredArgsConstructor;
@@ -83,54 +82,13 @@ public class PolicyExecutionEngine {
     }
 
     /**
-     * 执行 Policy 并追加指定的输出 SKILL
+     * 兼容调用入口：保留 outputSkillId 参数，但不再追加额外的输出 SKILL
      * @param policyId Policy ID
      * @param input 输入参数
-     * @param outputSkillId 输出 SKILL ID（必须在 SkillRegistry 中已注册）
+     * @param outputSkillId 兼容参数，当前已忽略
      */
     public PolicyExecuteResult execute(String policyId, Map<String, Object> input, String outputSkillId) {
-        PolicyDefinition policy = policyRegistry.get(policyId);
-        
-        Map<String, Object> safeInput = input;
-        if (safeInput == null || safeInput.isEmpty()) {
-            safeInput = policy.getExecutionInput();
-        }
-        if (safeInput == null) {
-            safeInput = new LinkedHashMap<>();
-        } else {
-            safeInput = new LinkedHashMap<>(safeInput);
-        }
-        
-        ExecutionPlan plan = policyPlanner.plan(policy, safeInput);
-        
-        if (outputSkillId != null && !outputSkillId.isBlank()) {
-            skillRegistry.get(outputSkillId);
-            plan = appendOutputSkill(plan, outputSkillId);
-        }
-        
-        PlanExecuteResult planResult = planExecutor.execute(plan, policy, safeInput);
-        if (!planResult.isSuccess()) {
-            Optional<ExecutionPlan> replanned = tryReplan(plan, policy, safeInput, planResult);
-            if (replanned.isPresent()) {
-                plan = replanned.get();
-                planResult = planExecutor.execute(plan, policy, safeInput);
-            }
-        }
-        persistExecution(plan, planResult);
-        persistAutoFeedback(plan.getExecutionId(), planResult);
-
-        return PolicyExecuteResult.builder()
-                .executionId(plan.getExecutionId())
-                .planId(plan.getPlanId())
-                .policyId(policyId)
-                .status(planResult.getExecutionStatus())
-                .success(planResult.isSuccess())
-                .durationMs(planResult.getDurationMs())
-                .plan(plan)
-                .state(planResult.getState())
-                .traces(planResult.getTraces())
-                .errorMessage(planResult.getErrorMessage())
-                .build();
+        return execute(policyId, input);
     }
 
     private Optional<ExecutionPlan> tryReplan(ExecutionPlan plan, PolicyDefinition policy, Map<String, Object> input, PlanExecuteResult result) {
@@ -143,76 +101,6 @@ public class PolicyExecutionEngine {
         }
         SkillResult failedResult = SkillResult.failed(result.getErrorMessage() == null ? "运行时执行失败" : result.getErrorMessage());
         return replanner.replan(plan, policy, input, result.getState(), failedStep, failedResult);
-    }
-
-    private ExecutionPlan appendOutputSkill(ExecutionPlan plan, String outputSkillId) {
-        List<ExecutionPlanStep> steps = new ArrayList<>(plan.getSteps());
-        List<PlannerDecision> decisions = new ArrayList<>(plan.getPlannerDecisions());
-        
-        int stepOrder = steps.size() + 1;
-        String stepId = "step_" + stepOrder;
-        String prevStepId = steps.isEmpty() ? null : steps.get(steps.size() - 1).getStepId();
-        
-        SkillDefinition outputSkill = skillRegistry.get(outputSkillId);
-        
-        ExecutionPlanStep outputStep = ExecutionPlanStep.builder()
-                .stepId(stepId)
-                .stepOrder(stepOrder)
-                .skillId(outputSkillId)
-                .skillSnapshot(buildSkillSnapshot(outputSkillId, outputSkill))
-                .mode("SKILL")
-                .timeoutMs(outputSkill.getTimeoutMs() != null ? outputSkill.getTimeoutMs() : 3000)
-                .retryPolicy(Map.of("maxAttempts", 1))
-                .dependsOn(prevStepId == null ? List.of() : List.of(prevStepId))
-                .inputBindings(Map.of("source", "state"))
-                .outputBindings(Map.of("target", "output"))
-                .onFailure("STOP")
-                .build();
-        
-        steps.add(outputStep);
-        
-        decisions.add(PlannerDecision.builder()
-                .type("select_skill")
-                .stepId(stepId)
-                .candidates(List.of(outputSkillId))
-                .chosen(outputSkillId)
-                .reason("动态追加输出 SKILL")
-                .metadata(Map.of("stepOrder", stepOrder, "dynamicallyAppended", true))
-                .build());
-        
-        return ExecutionPlan.builder()
-                .planId(plan.getPlanId())
-                .executionId(plan.getExecutionId())
-                .policyId(plan.getPolicyId())
-                .version(plan.getVersion())
-                .planType(plan.getPlanType())
-                .generatedAt(plan.getGeneratedAt())
-                .policySnapshot(plan.getPolicySnapshot())
-                .plannerMeta(plan.getPlannerMeta())
-                .plannerDecisions(decisions)
-                .steps(steps)
-                .build();
-    }
-
-    private Map<String, Object> buildSkillSnapshot(String skillId, SkillDefinition skill) {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("skillId", skillId);
-        if (skill == null) {
-            snapshot.put("missing", true);
-            return snapshot;
-        }
-        snapshot.put("name", skill.getName());
-        snapshot.put("type", skill.getType());
-        snapshot.put("description", skill.getDescription());
-        snapshot.put("tags", skill.getTags() == null ? List.of() : new ArrayList<>(skill.getTags()));
-        snapshot.put("outputSchema", skill.getOutputSchema() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(skill.getOutputSchema()));
-        snapshot.put("stateMapping", skill.getStateMapping() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(skill.getStateMapping()));
-        snapshot.put("executionConfig", skill.getExecutionConfig() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(skill.getExecutionConfig()));
-        snapshot.put("scriptConfig", skill.getScriptConfig() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(skill.getScriptConfig()));
-        snapshot.put("status", skill.getStatus());
-        snapshot.put("timeoutMs", skill.getTimeoutMs());
-        snapshot.put("version", skill.getVersion());
-        return snapshot;
     }
 
     private ExecutionPlanStep findFailedStep(ExecutionPlan plan, List<SkillExecutionTrace> traces) {

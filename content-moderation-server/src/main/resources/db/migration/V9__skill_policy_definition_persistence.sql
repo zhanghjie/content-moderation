@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS skill_definition (
-    skill_id VARCHAR(128) PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
+    skill_id VARCHAR(128) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(32) NOT NULL,
     description TEXT NOT NULL,
